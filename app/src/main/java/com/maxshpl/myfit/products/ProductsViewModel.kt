@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 sealed interface ProductsUiState {
     data object Loading : ProductsUiState
@@ -30,6 +31,14 @@ class ProductsViewModel(
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
             initialValue = ProductsUiState.Loading,
         )
+
+    fun hide(product: Product) {
+        viewModelScope.launch { repository.setHidden(product.id, true) }
+    }
+
+    fun delete(product: Product) {
+        viewModelScope.launch { repository.delete(product) }
+    }
 
     private fun Flow<List<Product>>.toUiState(): Flow<ProductsUiState> =
         map<List<Product>, ProductsUiState> { ProductsUiState.Success(it) }
