@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.diary.DiaryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +23,11 @@ sealed interface ProductsUiState {
     data class Error(val message: String) : ProductsUiState
 }
 
+data class DeleteBlocked(val product: Product, val entryCount: Int)
+
 class ProductsViewModel(
     private val repository: ProductRepository,
+    private val diaryRepository: DiaryRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
@@ -31,6 +35,9 @@ class ProductsViewModel(
 
     private val _showHidden = MutableStateFlow(false)
     val showHidden: StateFlow<Boolean> = _showHidden.asStateFlow()
+
+    private val _deleteBlocked = MutableStateFlow<DeleteBlocked?>(null)
+    val deleteBlocked: StateFlow<DeleteBlocked?> = _deleteBlocked.asStateFlow()
 
     val uiState: StateFlow<ProductsUiState> = combine(
         repository.allProducts,
@@ -62,7 +69,19 @@ class ProductsViewModel(
     }
 
     fun delete(product: Product) {
-        viewModelScope.launch { repository.delete(product) }
+        viewModelScope.launch {
+            when (repository.delete(product)) {
+                DeleteProductResult.Success -> Unit
+                DeleteProductResult.InUse -> {
+                    val count = diaryRepository.countByProduct(product.id)
+                    _deleteBlocked.update { DeleteBlocked(product, count) }
+                }
+            }
+        }
+    }
+
+    fun dismissDeleteBlocked() {
+        _deleteBlocked.update { null }
     }
 
     companion object {
@@ -72,8 +91,11 @@ class ProductsViewModel(
             initializer {
                 val application = this[APPLICATION_KEY]
                     ?: error("APPLICATION_KEY missing in CreationExtras")
-                val dao = AppDatabase.get(application).productDao()
-                ProductsViewModel(ProductRepository(dao))
+                val db = AppDatabase.get(application)
+                ProductsViewModel(
+                    repository = ProductRepository(db.productDao()),
+                    diaryRepository = DiaryRepository(db.diaryEntryDao()),
+                )
             }
         }
     }

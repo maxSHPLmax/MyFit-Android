@@ -72,6 +72,7 @@ fun ProductsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val showHidden by viewModel.showHidden.collectAsStateWithLifecycle()
+    val deleteBlocked by viewModel.deleteBlocked.collectAsStateWithLifecycle()
 
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf<PendingAction?>(null) }
@@ -131,6 +132,46 @@ fun ProductsScreen(
             onDismiss = { pendingAction = null },
         )
     }
+
+    deleteBlocked?.let { blocked ->
+        DeleteBlockedDialog(
+            blocked = blocked,
+            onHide = {
+                viewModel.hide(blocked.product)
+                viewModel.dismissDeleteBlocked()
+            },
+            onDismiss = viewModel::dismissDeleteBlocked,
+        )
+    }
+}
+
+@Composable
+private fun DeleteBlockedDialog(
+    blocked: DeleteBlocked,
+    onHide: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val count = blocked.entryCount
+    val entriesWord = pluralEntries(count)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Нельзя удалить") },
+        text = {
+            Text(
+                "«${blocked.product.name}» используется в $count $entriesWord дневника. " +
+                    "Сначала удалите эти записи или скройте продукт — тогда он перестанет " +
+                    "показываться в списке и в форме добавления.",
+            )
+        },
+        confirmButton = { TextButton(onClick = onHide) { Text("Скрыть продукт") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+
+private fun pluralEntries(count: Int): String {
+    val mod10 = count % 10
+    val mod100 = count % 100
+    return if (mod10 == 1 && mod100 != 11) "записи" else "записях"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
