@@ -45,10 +45,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.maxshpl.myfit.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +62,7 @@ fun ActivitiesScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
+    val deleteBlocked by viewModel.deleteBlocked.collectAsStateWithLifecycle()
 
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Activity?>(null) }
@@ -114,6 +117,24 @@ fun ActivitiesScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
+            },
+        )
+    }
+
+    deleteBlocked?.let { blocked ->
+        val count = blocked.logCount
+        val recordsText = pluralStringResource(R.plurals.diary_records_count, count, count)
+        AlertDialog(
+            onDismissRequest = viewModel::dismissDeleteBlocked,
+            title = { Text("Нельзя удалить") },
+            text = {
+                Text(
+                    "«${blocked.activity.name}» используется в $recordsText. " +
+                        "Удаление невозможно.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissDeleteBlocked) { Text("Понятно") }
             },
         )
     }

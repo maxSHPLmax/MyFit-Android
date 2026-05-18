@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.diary.ActivityLogRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,12 +23,18 @@ sealed interface ActivitiesUiState {
     data class Error(val message: String) : ActivitiesUiState
 }
 
+data class ActivityDeleteBlocked(val activity: Activity, val logCount: Int)
+
 class ActivitiesViewModel(
     private val repository: ActivityRepository,
+    private val activityLogRepository: ActivityLogRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
+
+    private val _deleteBlocked = MutableStateFlow<ActivityDeleteBlocked?>(null)
+    val deleteBlocked: StateFlow<ActivityDeleteBlocked?> = _deleteBlocked.asStateFlow()
 
     val uiState: StateFlow<ActivitiesUiState> = combine(
         repository.activities,
@@ -47,7 +54,19 @@ class ActivitiesViewModel(
     fun setQuery(value: String) = _query.update { value }
 
     fun delete(activity: Activity) {
-        viewModelScope.launch { repository.delete(activity) }
+        viewModelScope.launch {
+            when (repository.delete(activity)) {
+                DeleteActivityResult.Success -> Unit
+                DeleteActivityResult.InUse -> {
+                    val count = activityLogRepository.countByActivity(activity.id)
+                    _deleteBlocked.update { ActivityDeleteBlocked(activity, count) }
+                }
+            }
+        }
+    }
+
+    fun dismissDeleteBlocked() {
+        _deleteBlocked.update { null }
     }
 
     companion object {
@@ -57,8 +76,11 @@ class ActivitiesViewModel(
             initializer {
                 val application = this[APPLICATION_KEY]
                     ?: error("APPLICATION_KEY missing in CreationExtras")
-                val dao = AppDatabase.get(application).activityDao()
-                ActivitiesViewModel(ActivityRepository(dao))
+                val db = AppDatabase.get(application)
+                ActivitiesViewModel(
+                    repository = ActivityRepository(db.activityDao()),
+                    activityLogRepository = ActivityLogRepository(db.activityLogDao()),
+                )
             }
         }
     }

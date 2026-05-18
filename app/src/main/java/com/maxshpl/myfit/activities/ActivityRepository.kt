@@ -8,6 +8,11 @@ sealed interface SaveActivityResult {
     data object DuplicateName : SaveActivityResult
 }
 
+sealed interface DeleteActivityResult {
+    data object Success : DeleteActivityResult
+    data object InUse : DeleteActivityResult
+}
+
 class ActivityRepository(private val dao: ActivityDao) {
 
     val activities: Flow<List<Activity>> = dao.observeAll()
@@ -27,5 +32,10 @@ class ActivityRepository(private val dao: ActivityDao) {
         SaveActivityResult.DuplicateName
     }
 
-    suspend fun delete(activity: Activity) = dao.delete(activity)
+    suspend fun delete(activity: Activity): DeleteActivityResult = try {
+        dao.delete(activity)
+        DeleteActivityResult.Success
+    } catch (e: SQLiteConstraintException) {
+        DeleteActivityResult.InUse
+    }
 }
