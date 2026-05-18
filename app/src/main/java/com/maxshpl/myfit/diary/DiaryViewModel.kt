@@ -21,6 +21,9 @@ data class DiaryUiState(
     val rows: List<DiaryRow>,
     val totals: DayTotals,
     val targets: DailyTargets,
+    // Сожжённые калории за день. KAN-17 заменит константу на Flow<Double>
+    // от ActivityLog; UI уже использует это поле для расчёта Баланса.
+    val burnedKcal: Double,
 )
 
 class DiaryViewModel(
@@ -40,6 +43,7 @@ class DiaryViewModel(
             rows = rows,
             totals = totals,
             targets = targets,
+            burnedKcal = BURNED_KCAL_STUB,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -49,6 +53,7 @@ class DiaryViewModel(
             rows = emptyList(),
             totals = DayTotals.Empty,
             targets = DailyTargets.Default,
+            burnedKcal = BURNED_KCAL_STUB,
         ),
     )
 
@@ -58,6 +63,7 @@ class DiaryViewModel(
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
+        private const val BURNED_KCAL_STUB = 0.0
 
         val Factory = viewModelFactory {
             initializer {

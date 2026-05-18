@@ -32,6 +32,7 @@ import com.maxshpl.myfit.products.ProductsScreen
 object Routes {
     const val DIARY = "diary"
     const val DIARY_ADD = "diary/add"
+    const val DIARY_ADD_ACTIVITY = "diary/activity/add"
     const val PLAN = "plan"
     const val HISTORY = "history"
     const val PRODUCTS = "products"
@@ -80,11 +81,15 @@ fun AppNav() {
         ) {
             composable(Routes.DIARY) {
                 DiaryScreen(
-                    onAddClick = { navController.navigate(Routes.DIARY_ADD) },
+                    onAddProductClick = { navController.navigate(Routes.DIARY_ADD) },
+                    onAddActivityClick = { navController.navigate(Routes.DIARY_ADD_ACTIVITY) },
                 )
             }
             composable(Routes.DIARY_ADD) {
                 AddDiaryEntryScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.DIARY_ADD_ACTIVITY) {
+                PlaceholderScreen(title = "Добавить активность")
             }
             composable(Routes.PLAN) {
                 PlaceholderScreen(title = "План")

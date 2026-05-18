@@ -276,8 +276,3 @@ private fun formatProductMacros(product: Product): String {
 
 private fun formatFloat(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)
-
-private fun formatMacro(value: Double): String {
-    val rounded = (value * 10).toInt() / 10.0
-    return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else "%.1f".format(rounded)
-}
