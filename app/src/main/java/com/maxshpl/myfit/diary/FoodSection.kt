@@ -20,6 +20,9 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -54,7 +57,9 @@ fun FoodSection(
             } else {
                 Column {
                     rows.forEach { row ->
-                        SwipeableDiaryRow(row = row, onSwipe = { onSwipeRow(row) })
+                        key(row.entryId) {
+                            SwipeableDiaryRow(row = row, onSwipe = { onSwipeRow(row) })
+                        }
                     }
                 }
             }
@@ -93,10 +98,11 @@ internal fun SectionHeader(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableDiaryRow(row: DiaryRow, onSwipe: () -> Unit) {
+    val currentOnSwipe by rememberUpdatedState(onSwipe)
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled) {
-                onSwipe()
+                currentOnSwipe()
             }
             false
         },
