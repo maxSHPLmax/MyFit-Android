@@ -15,15 +15,19 @@ class DiaryRepository(private val dao: DiaryEntryDao) {
     fun totalsForDate(date: LocalDate): Flow<DayTotals> =
         dao.observeTotalsByDate(date.toString())
 
-    suspend fun add(date: LocalDate, mealType: MealType, productId: Long, grams: Double): Long =
-        dao.insert(
-            DiaryEntry(
-                date = date.toString(),
-                mealType = mealType,
-                productId = productId,
-                grams = grams,
-            ),
-        )
+    suspend fun add(
+        date: LocalDate,
+        productId: Long,
+        grams: Double,
+        mealType: MealType? = null,
+    ): Long = dao.insert(
+        DiaryEntry(
+            date = date.toString(),
+            mealType = mealType,
+            productId = productId,
+            grams = grams,
+        ),
+    )
 
     suspend fun delete(entry: DiaryEntry) = dao.delete(entry)
 

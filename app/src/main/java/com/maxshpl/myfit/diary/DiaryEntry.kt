@@ -28,7 +28,7 @@ data class DiaryEntry(
     val id: Long = 0L,
     val date: String,
     @ColumnInfo(name = "meal_type")
-    val mealType: MealType,
+    val mealType: MealType? = null,
     @ColumnInfo(name = "product_id")
     val productId: Long,
     val grams: Double,

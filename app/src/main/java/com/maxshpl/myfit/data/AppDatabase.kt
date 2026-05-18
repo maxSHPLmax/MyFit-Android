@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Product::class, DiaryEntry::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -44,7 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             return Room.databaseBuilder(appContext, AppDatabase::class.java, DB_NAME)
                 .addCallback(SeedCallback(scope))
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
         }
 

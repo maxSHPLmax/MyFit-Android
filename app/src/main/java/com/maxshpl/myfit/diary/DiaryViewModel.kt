@@ -15,7 +15,7 @@ import java.time.LocalDate
 
 data class DiaryUiState(
     val date: LocalDate,
-    val rowsByMeal: Map<MealType, List<DiaryRow>>,
+    val rows: List<DiaryRow>,
     val totals: DayTotals,
 )
 
@@ -31,7 +31,7 @@ class DiaryViewModel(
     ) { rows, totals ->
         DiaryUiState(
             date = today,
-            rowsByMeal = rows.groupBy { it.mealType },
+            rows = rows,
             totals = totals,
         )
     }.stateIn(
@@ -39,7 +39,7 @@ class DiaryViewModel(
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
         initialValue = DiaryUiState(
             date = today,
-            rowsByMeal = emptyMap(),
+            rows = emptyList(),
             totals = DayTotals.Empty,
         ),
     )

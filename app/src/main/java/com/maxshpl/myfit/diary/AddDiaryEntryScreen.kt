@@ -54,7 +54,7 @@ fun AddDiaryEntryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Добавить в ${state.mealType.displayName()}") },
+                title = { Text("Добавить продукт") },
                 navigationIcon = {
                     IconButton(
                         onClick = {
@@ -265,13 +265,6 @@ private fun computePreview(product: Product, gramsText: String): MacroPreview? {
         fat = product.fatPer100g * factor,
         carbs = product.carbsPer100g * factor,
     )
-}
-
-private fun MealType.displayName(): String = when (this) {
-    MealType.Breakfast -> "Завтрак"
-    MealType.Lunch -> "Обед"
-    MealType.Dinner -> "Ужин"
-    MealType.Snack -> "Перекус"
 }
 
 private fun formatProductMacros(product: Product): String {

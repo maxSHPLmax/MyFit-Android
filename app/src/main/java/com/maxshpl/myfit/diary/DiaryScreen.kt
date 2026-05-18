@@ -11,14 +11,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -49,7 +48,7 @@ private val DateFormatter: DateTimeFormatter =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryScreen(
-    onAddClick: (MealType) -> Unit,
+    onAddClick: () -> Unit,
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -71,22 +70,37 @@ fun DiaryScreen(
                 },
             )
         },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onAddClick) {
+                Icon(Icons.Default.Add, contentDescription = "Добавить продукт")
+            }
+        },
         bottomBar = { DayTotalsBar(totals = state.totals) },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            MealType.entries.forEach { meal ->
-                item(key = "meal-${meal.name}") {
-                    MealSection(
-                        meal = meal,
-                        rows = state.rowsByMeal[meal].orEmpty(),
-                        onAddClick = { onAddClick(meal) },
-                        onSwipeRow = { row -> pendingDelete = row },
+        if (state.rows.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Сегодня пока ничего не записано",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(state.rows, key = { it.entryId }) { row ->
+                    SwipeableDiaryRow(
+                        row = row,
+                        onSwipe = { pendingDelete = row },
                     )
                 }
             }
@@ -113,69 +127,6 @@ fun DiaryScreen(
                 TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
             },
         )
-    }
-}
-
-@Composable
-private fun MealSection(
-    meal: MealType,
-    rows: List<DiaryRow>,
-    onAddClick: () -> Unit,
-    onSwipeRow: (DiaryRow) -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = meal.displayName(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                if (rows.isNotEmpty()) {
-                    Text(
-                        text = "${formatKcal(rows.sumOf { it.kcal })} ккал",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            if (rows.isEmpty()) {
-                Text(
-                    text = "Пока пусто",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            } else {
-                Column {
-                    rows.forEach { row ->
-                        SwipeableDiaryRow(
-                            row = row,
-                            onSwipe = { onSwipeRow(row) },
-                        )
-                    }
-                }
-            }
-            TextButton(
-                onClick = onAddClick,
-                modifier = Modifier.padding(start = 8.dp),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Добавить продукт")
-            }
-        }
     }
 }
 
@@ -227,7 +178,7 @@ private fun DiaryRowItem(row: DiaryRow) {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -292,13 +243,6 @@ private fun TotalCell(value: String, label: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
-
-private fun MealType.displayName(): String = when (this) {
-    MealType.Breakfast -> "Завтрак"
-    MealType.Lunch -> "Обед"
-    MealType.Dinner -> "Ужин"
-    MealType.Snack -> "Перекус"
 }
 
 private fun formatKcal(value: Double): String = value.toInt().toString()

@@ -13,7 +13,7 @@ data class DiaryRowDb(
     @ColumnInfo(name = "product_id")
     val productId: Long,
     @ColumnInfo(name = "meal_type")
-    val mealType: MealType,
+    val mealType: MealType?,
     val grams: Double,
     @ColumnInfo(name = "product_name")
     val productName: String,

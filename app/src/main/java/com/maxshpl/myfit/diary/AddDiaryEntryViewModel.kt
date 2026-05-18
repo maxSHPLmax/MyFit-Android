@@ -1,20 +1,16 @@
 package com.maxshpl.myfit.diary
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
-import com.maxshpl.myfit.navigation.NavArgs
 import com.maxshpl.myfit.products.Product
 import com.maxshpl.myfit.products.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -22,7 +18,6 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 data class AddDiaryEntryUiState(
-    val mealType: MealType,
     val query: String = "",
     val products: List<Product> = emptyList(),
     val selectedProduct: Product? = null,
@@ -35,14 +30,8 @@ data class AddDiaryEntryUiState(
 class AddDiaryEntryViewModel(
     private val productRepository: ProductRepository,
     private val diaryRepository: DiaryRepository,
-    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val mealType: MealType = MealType.valueOf(
-        checkNotNull(savedStateHandle[NavArgs.MEAL_TYPE]) {
-            "Missing nav arg ${NavArgs.MEAL_TYPE}"
-        },
-    )
     private val today: LocalDate = LocalDate.now()
 
     private val _query = MutableStateFlow("")
@@ -71,7 +60,6 @@ class AddDiaryEntryViewModel(
         combine(_gramsText, _gramsError, _isSaving, _saveCompleted, ::Quad),
     ) { query, products, selected, gramsBlock ->
         AddDiaryEntryUiState(
-            mealType = mealType,
             query = query,
             products = products,
             selectedProduct = selected,
@@ -83,7 +71,7 @@ class AddDiaryEntryViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = AddDiaryEntryUiState(mealType = mealType),
+        initialValue = AddDiaryEntryUiState(),
     )
 
     fun setQuery(value: String) = _query.update { value }
@@ -115,7 +103,7 @@ class AddDiaryEntryViewModel(
         if (_isSaving.value) return
         _isSaving.update { true }
         viewModelScope.launch {
-            diaryRepository.add(today, mealType, product.id, grams)
+            diaryRepository.add(date = today, productId = product.id, grams = grams)
             _saveCompleted.update { true }
         }
     }
@@ -146,7 +134,6 @@ class AddDiaryEntryViewModel(
                 AddDiaryEntryViewModel(
                     productRepository = ProductRepository(db.productDao()),
                     diaryRepository = DiaryRepository(db.diaryEntryDao()),
-                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }
