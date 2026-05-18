@@ -75,4 +75,7 @@ interface DiaryEntryDao {
 
     @Delete
     suspend fun delete(entry: DiaryEntry)
+
+    @Query("DELETE FROM diary_entries WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

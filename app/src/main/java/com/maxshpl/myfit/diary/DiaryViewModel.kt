@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 data class DiaryUiState(
@@ -42,6 +43,10 @@ class DiaryViewModel(
             totals = DayTotals.Empty,
         ),
     )
+
+    fun delete(entryId: Long) {
+        viewModelScope.launch { repository.deleteById(entryId) }
+    }
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L

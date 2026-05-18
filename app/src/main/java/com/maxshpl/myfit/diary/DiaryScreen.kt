@@ -1,6 +1,8 @@
 package com.maxshpl.myfit.diary
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -20,11 +23,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +53,7 @@ fun DiaryScreen(
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var pendingDelete by remember { mutableStateOf<DiaryRow?>(null) }
 
     Scaffold(
         topBar = {
@@ -76,10 +86,33 @@ fun DiaryScreen(
                         meal = meal,
                         rows = state.rowsByMeal[meal].orEmpty(),
                         onAddClick = { onAddClick(meal) },
+                        onSwipeRow = { row -> pendingDelete = row },
                     )
                 }
             }
         }
+    }
+
+    pendingDelete?.let { row ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Удалить запись?") },
+            text = {
+                Text(
+                    "«${row.productName}» — ${formatGrams(row.grams)} г, " +
+                        "${formatKcal(row.kcal)} ккал. Будет удалена без возможности восстановления.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.delete(row.entryId)
+                    pendingDelete = null
+                }) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
+            },
+        )
     }
 }
 
@@ -88,6 +121,7 @@ private fun MealSection(
     meal: MealType,
     rows: List<DiaryRow>,
     onAddClick: () -> Unit,
+    onSwipeRow: (DiaryRow) -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -107,11 +141,13 @@ private fun MealSection(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    text = "${formatKcal(rows.sumOf { it.kcal })} ккал",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (rows.isNotEmpty()) {
+                    Text(
+                        text = "${formatKcal(rows.sumOf { it.kcal })} ккал",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             if (rows.isEmpty()) {
@@ -122,9 +158,12 @@ private fun MealSection(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             } else {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Column {
                     rows.forEach { row ->
-                        DiaryRowItem(row = row)
+                        SwipeableDiaryRow(
+                            row = row,
+                            onSwipe = { onSwipeRow(row) },
+                        )
                     }
                 }
             }
@@ -140,9 +179,56 @@ private fun MealSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableDiaryRow(
+    row: DiaryRow,
+    onSwipe: () -> Unit,
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) {
+                onSwipe()
+            }
+            false
+        },
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = { SwipeBackground() },
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+    ) {
+        DiaryRowItem(row = row)
+    }
+}
+
+@Composable
+private fun SwipeBackground() {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(scheme.errorContainer),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Text(
+            text = "Удалить",
+            color = scheme.onErrorContainer,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(end = 16.dp),
+        )
+    }
+}
+
 @Composable
 private fun DiaryRowItem(row: DiaryRow) {
-    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = row.productName,
@@ -183,7 +269,7 @@ private fun DayTotalsBar(totals: DayTotals) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                TotalCell(value = "${formatKcal(totals.kcal)}", label = "ккал")
+                TotalCell(value = formatKcal(totals.kcal), label = "ккал")
                 TotalCell(value = formatMacro(totals.protein), label = "Б, г")
                 TotalCell(value = formatMacro(totals.fat), label = "Ж, г")
                 TotalCell(value = formatMacro(totals.carbs), label = "У, г")

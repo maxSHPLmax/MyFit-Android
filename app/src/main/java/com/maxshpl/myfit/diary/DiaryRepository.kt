@@ -27,6 +27,8 @@ class DiaryRepository(private val dao: DiaryEntryDao) {
 
     suspend fun delete(entry: DiaryEntry) = dao.delete(entry)
 
+    suspend fun deleteById(id: Long) = dao.deleteById(id)
+
     suspend fun countByProduct(productId: Long): Int = dao.countByProduct(productId)
 }
 
