@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">MyFit</string>
+
+    <!--
+        EN fallback. Real audience is RU (values-ru/strings.xml).
+        Used by DeleteBlockedDialog in ProductsScreen and ActivitiesScreen
+        to display "used in N diary record(s)".
+    -->
+    <plurals name="diary_records_count">
+        <item quantity="one">%d diary record</item>
+        <item quantity="other">%d diary records</item>
+    </plurals>
 </resources>
