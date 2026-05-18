@@ -72,6 +72,7 @@ fun DashboardSection(
                     .height(8.dp),
                 color = barColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                drawStopIndicator = {},
             )
 
             Row(
@@ -138,6 +139,7 @@ private fun EatenTile(eaten: Double, target: Int, modifier: Modifier = Modifier)
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp),
+                drawStopIndicator = {},
             )
         }
     }
@@ -193,6 +195,7 @@ private fun NutrientChip(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(3.dp),
+                drawStopIndicator = {},
             )
         }
     }
