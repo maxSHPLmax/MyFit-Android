@@ -26,6 +26,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.maxshpl.myfit.activities.ActivitiesScreen
+import com.maxshpl.myfit.activities.AddEditActivityScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
@@ -41,13 +42,18 @@ object Routes {
     const val PRODUCT_NEW = "products/new"
     const val PRODUCT_EDIT = "products/edit/{id}"
     const val ACTIVITIES = "activities"
+    const val ACTIVITY_NEW = "activities/new"
+    const val ACTIVITY_EDIT = "activities/edit/{activityId}"
     const val SETTINGS = "settings"
 
     fun productEdit(id: Long): String = "products/edit/$id"
+
+    fun activityEdit(id: Long): String = "activities/edit/$id"
 }
 
 object NavArgs {
     const val PRODUCT_ID = "id"
+    const val ACTIVITY_ID = "activityId"
 }
 
 private enum class TopLevelTab(
@@ -117,10 +123,19 @@ fun AppNav() {
             }
             composable(Routes.ACTIVITIES) {
                 ActivitiesScreen(
-                    onAddClick = { /* KAN-16 part 3/3: navigate to add form */ },
-                    onEditClick = { /* KAN-16 part 3/3: navigate to edit form */ },
+                    onAddClick = { navController.navigate(Routes.ACTIVITY_NEW) },
+                    onEditClick = { id -> navController.navigate(Routes.activityEdit(id)) },
                     onBack = { navController.popBackStack() },
                 )
+            }
+            composable(Routes.ACTIVITY_NEW) {
+                AddEditActivityScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                route = Routes.ACTIVITY_EDIT,
+                arguments = listOf(navArgument(NavArgs.ACTIVITY_ID) { type = NavType.LongType }),
+            ) {
+                AddEditActivityScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
                 PlaceholderScreen(
