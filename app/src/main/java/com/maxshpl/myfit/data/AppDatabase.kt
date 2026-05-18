@@ -5,7 +5,10 @@ import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.maxshpl.myfit.diary.DiaryEntry
+import com.maxshpl.myfit.diary.DiaryEntryDao
 import com.maxshpl.myfit.products.Product
 import com.maxshpl.myfit.products.ProductDao
 import com.maxshpl.myfit.products.ProductSeed
@@ -15,13 +18,16 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Product::class],
-    version = 1,
+    entities = [Product::class, DiaryEntry::class],
+    version = 2,
     exportSchema = true,
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun productDao(): ProductDao
+
+    abstract fun diaryEntryDao(): DiaryEntryDao
 
     companion object {
         private const val TAG = "MyFitDb"
@@ -38,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             return Room.databaseBuilder(appContext, AppDatabase::class.java, DB_NAME)
                 .addCallback(SeedCallback(scope))
+                .addMigrations(MIGRATION_1_2)
                 .build()
         }
 
