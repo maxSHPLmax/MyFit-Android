@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -24,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.maxshpl.myfit.activities.ActivitiesScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
@@ -38,6 +40,7 @@ object Routes {
     const val PRODUCTS = "products"
     const val PRODUCT_NEW = "products/new"
     const val PRODUCT_EDIT = "products/edit/{id}"
+    const val ACTIVITIES = "activities"
     const val SETTINGS = "settings"
 
     fun productEdit(id: Long): String = "products/edit/$id"
@@ -112,8 +115,27 @@ fun AppNav() {
             ) {
                 AddEditProductScreen(onBack = { navController.popBackStack() })
             }
+            composable(Routes.ACTIVITIES) {
+                ActivitiesScreen(
+                    onAddClick = { /* KAN-16 part 3/3: navigate to add form */ },
+                    onEditClick = { /* KAN-16 part 3/3: navigate to edit form */ },
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(Routes.SETTINGS) {
-                PlaceholderScreen(title = "Настройки")
+                PlaceholderScreen(
+                    title = "Настройки",
+                    extraContent = {
+                        // KAN-16: временная debug-кнопка. УДАЛИТЬ при реализации KAN-9
+                        // (полноценный экран настроек заменит этот placeholder и должен
+                        // содержать пункт "Управление активностями" в основном меню).
+                        FilledTonalButton(
+                            onClick = { navController.navigate(Routes.ACTIVITIES) },
+                        ) {
+                            Text("Управление активностями (dev)")
+                        }
+                    },
+                )
             }
         }
     }
