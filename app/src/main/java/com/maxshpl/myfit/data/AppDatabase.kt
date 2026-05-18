@@ -7,6 +7,9 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.maxshpl.myfit.activities.Activity
+import com.maxshpl.myfit.activities.ActivityDao
+import com.maxshpl.myfit.activities.ActivitySeed
 import com.maxshpl.myfit.diary.DiaryEntry
 import com.maxshpl.myfit.diary.DiaryEntryDao
 import com.maxshpl.myfit.products.Product
@@ -18,8 +21,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Product::class, DiaryEntry::class],
-    version = 3,
+    entities = [Product::class, DiaryEntry::class, Activity::class],
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -28,6 +31,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
 
     abstract fun diaryEntryDao(): DiaryEntryDao
+
+    abstract fun activityDao(): ActivityDao
 
     companion object {
         private const val TAG = "MyFitDb"
@@ -44,7 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             return Room.databaseBuilder(appContext, AppDatabase::class.java, DB_NAME)
                 .addCallback(SeedCallback(scope))
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
         }
 
@@ -59,10 +64,23 @@ abstract class AppDatabase : RoomDatabase() {
                     return
                 }
                 scope.launch {
-                    val dao = database.productDao()
-                    val seeded = ProductSeed.items
-                    dao.insertAll(seeded)
-                    Log.i(TAG, "Seeded ${seeded.size} products (count in DB: ${dao.count()})")
+                    val productDao = database.productDao()
+                    val seededProducts = ProductSeed.items
+                    productDao.insertAll(seededProducts)
+                    Log.i(
+                        TAG,
+                        "Seeded ${seededProducts.size} products " +
+                            "(count in DB: ${productDao.count()})",
+                    )
+
+                    val activityDao = database.activityDao()
+                    val seededActivities = ActivitySeed.items
+                    activityDao.insertAll(seededActivities)
+                    Log.i(
+                        TAG,
+                        "Seeded ${seededActivities.size} activities " +
+                            "(count in DB: ${activityDao.count()})",
+                    )
                 }
             }
         }
