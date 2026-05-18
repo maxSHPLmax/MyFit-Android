@@ -21,21 +21,26 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
 import com.maxshpl.myfit.products.ProductsScreen
 
 object Routes {
     const val DIARY = "diary"
+    const val DIARY_ADD = "diary/add/{mealType}"
     const val PRODUCTS = "products"
     const val PRODUCT_NEW = "products/new"
     const val PRODUCT_EDIT = "products/edit/{id}"
+
+    fun diaryAdd(mealType: String): String = "diary/add/$mealType"
 
     fun productEdit(id: Long): String = "products/edit/$id"
 }
 
 object NavArgs {
     const val PRODUCT_ID = "id"
+    const val MEAL_TYPE = "mealType"
 }
 
 private enum class TopLevelTab(
@@ -69,8 +74,16 @@ fun AppNav() {
         ) {
             composable(Routes.DIARY) {
                 DiaryScreen(
-                    onAddClick = { /* TODO commit 3: navigate to add entry */ },
+                    onAddClick = { mealType ->
+                        navController.navigate(Routes.diaryAdd(mealType.name))
+                    },
                 )
+            }
+            composable(
+                route = Routes.DIARY_ADD,
+                arguments = listOf(navArgument(NavArgs.MEAL_TYPE) { type = NavType.StringType }),
+            ) {
+                AddDiaryEntryScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.PRODUCTS) {
                 ProductsScreen(
