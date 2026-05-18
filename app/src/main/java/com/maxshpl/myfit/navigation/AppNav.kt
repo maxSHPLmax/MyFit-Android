@@ -27,6 +27,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.maxshpl.myfit.activities.ActivitiesScreen
 import com.maxshpl.myfit.activities.AddEditActivityScreen
+import com.maxshpl.myfit.diary.AddActivityLogScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
@@ -98,7 +99,10 @@ fun AppNav() {
                 AddDiaryEntryScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.DIARY_ADD_ACTIVITY) {
-                PlaceholderScreen(title = "Добавить активность")
+                AddActivityLogScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToActivities = { navController.navigate(Routes.ACTIVITIES) },
+                )
             }
             composable(Routes.PLAN) {
                 PlaceholderScreen(title = "План")
