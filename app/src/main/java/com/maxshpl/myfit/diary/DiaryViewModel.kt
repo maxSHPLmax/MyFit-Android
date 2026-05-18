@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.settings.DailyTargets
+import com.maxshpl.myfit.settings.TargetsRepository
+import com.maxshpl.myfit.settings.settingsDataStore
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -17,10 +20,12 @@ data class DiaryUiState(
     val date: LocalDate,
     val rows: List<DiaryRow>,
     val totals: DayTotals,
+    val targets: DailyTargets,
 )
 
 class DiaryViewModel(
     private val repository: DiaryRepository,
+    private val targetsRepository: TargetsRepository,
 ) : ViewModel() {
 
     private val today: LocalDate = LocalDate.now()
@@ -28,11 +33,13 @@ class DiaryViewModel(
     val uiState: StateFlow<DiaryUiState> = combine(
         repository.rowsForDate(today),
         repository.totalsForDate(today),
-    ) { rows, totals ->
+        targetsRepository.targets,
+    ) { rows, totals, targets ->
         DiaryUiState(
             date = today,
             rows = rows,
             totals = totals,
+            targets = targets,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -41,6 +48,7 @@ class DiaryViewModel(
             date = today,
             rows = emptyList(),
             totals = DayTotals.Empty,
+            targets = DailyTargets.Default,
         ),
     )
 
@@ -56,7 +64,10 @@ class DiaryViewModel(
                 val application = this[APPLICATION_KEY]
                     ?: error("APPLICATION_KEY missing in CreationExtras")
                 val dao = AppDatabase.get(application).diaryEntryDao()
-                DiaryViewModel(DiaryRepository(dao))
+                DiaryViewModel(
+                    repository = DiaryRepository(dao),
+                    targetsRepository = TargetsRepository(application.settingsDataStore),
+                )
             }
         }
     }
