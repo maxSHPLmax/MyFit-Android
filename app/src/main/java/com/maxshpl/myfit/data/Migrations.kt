@@ -61,6 +61,34 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * Аддитивная миграция: добавляет таблицу activity_log с FK на activities
+ * (ON DELETE RESTRICT) и индексами по activity_id и date. Существующие
+ * таблицы products, diary_entries, activities не трогаются.
+ * Без seed — пользовательские данные.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `activity_log` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `date` TEXT NOT NULL,
+                `activity_id` INTEGER NOT NULL,
+                `duration_minutes` REAL NOT NULL,
+                FOREIGN KEY(`activity_id`) REFERENCES `activities`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_activity_log_activity_id` ON `activity_log` (`activity_id`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_activity_log_date` ON `activity_log` (`date`)",
+        )
+    }
+}
+
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(

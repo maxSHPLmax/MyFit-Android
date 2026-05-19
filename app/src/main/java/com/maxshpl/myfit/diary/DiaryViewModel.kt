@@ -21,14 +21,14 @@ data class DiaryUiState(
     val rows: List<DiaryRow>,
     val totals: DayTotals,
     val targets: DailyTargets,
-    // Сожжённые калории за день. KAN-17 заменит константу на Flow<Double>
-    // от ActivityLog; UI уже использует это поле для расчёта Баланса.
+    val activityLogs: List<ActivityLogRow>,
     val burnedKcal: Double,
 )
 
 class DiaryViewModel(
     private val repository: DiaryRepository,
     private val targetsRepository: TargetsRepository,
+    private val activityLogRepository: ActivityLogRepository,
 ) : ViewModel() {
 
     private val today: LocalDate = LocalDate.now()
@@ -37,13 +37,16 @@ class DiaryViewModel(
         repository.rowsForDate(today),
         repository.totalsForDate(today),
         targetsRepository.targets,
-    ) { rows, totals, targets ->
+        activityLogRepository.rowsForDate(today),
+        activityLogRepository.sumKcalForDate(today),
+    ) { rows, totals, targets, activityLogs, burnedKcal ->
         DiaryUiState(
             date = today,
             rows = rows,
             totals = totals,
             targets = targets,
-            burnedKcal = BURNED_KCAL_STUB,
+            activityLogs = activityLogs,
+            burnedKcal = burnedKcal,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -53,7 +56,8 @@ class DiaryViewModel(
             rows = emptyList(),
             totals = DayTotals.Empty,
             targets = DailyTargets.Default,
-            burnedKcal = BURNED_KCAL_STUB,
+            activityLogs = emptyList(),
+            burnedKcal = 0.0,
         ),
     )
 
@@ -61,18 +65,22 @@ class DiaryViewModel(
         viewModelScope.launch { repository.deleteById(entryId) }
     }
 
+    fun deleteActivityLog(logId: Long) {
+        viewModelScope.launch { activityLogRepository.deleteById(logId) }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
-        private const val BURNED_KCAL_STUB = 0.0
 
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY]
                     ?: error("APPLICATION_KEY missing in CreationExtras")
-                val dao = AppDatabase.get(application).diaryEntryDao()
+                val db = AppDatabase.get(application)
                 DiaryViewModel(
-                    repository = DiaryRepository(dao),
+                    repository = DiaryRepository(db.diaryEntryDao()),
                     targetsRepository = TargetsRepository(application.settingsDataStore),
+                    activityLogRepository = ActivityLogRepository(db.activityLogDao()),
                 )
             }
         }

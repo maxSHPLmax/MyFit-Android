@@ -1,0 +1,16 @@
+<resources>
+    <!--
+        Русские формы plurals для "N записи/записях дневника".
+        Android ICU сам выбирает форму по числу:
+          one  — оканчивается на 1, кроме 11 (1, 21, 31, 101…)
+          few  — оканчивается на 2-4, кроме 12-14 (2, 3, 4, 22, 23…)
+          many — оканчивается на 0, 5-9 или 11-14 (0, 5, 11, 12, 15, 20…)
+          other — дробные (в нашем кейсе count: Int, не вызывается)
+    -->
+    <plurals name="diary_records_count">
+        <item quantity="one">%d записи дневника</item>
+        <item quantity="few">%d записях дневника</item>
+        <item quantity="many">%d записях дневника</item>
+        <item quantity="other">%d записях дневника</item>
+    </plurals>
+</resources>

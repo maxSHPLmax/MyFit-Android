@@ -50,10 +50,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.maxshpl.myfit.R
 
 private sealed interface PendingAction {
     val product: Product
@@ -152,13 +154,13 @@ private fun DeleteBlockedDialog(
     onDismiss: () -> Unit,
 ) {
     val count = blocked.entryCount
-    val entriesWord = pluralEntries(count)
+    val recordsText = pluralStringResource(R.plurals.diary_records_count, count, count)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Нельзя удалить") },
         text = {
             Text(
-                "«${blocked.product.name}» используется в $count $entriesWord дневника. " +
+                "«${blocked.product.name}» используется в $recordsText. " +
                     "Сначала удалите эти записи или скройте продукт — тогда он перестанет " +
                     "показываться в списке и в форме добавления.",
             )
@@ -166,12 +168,6 @@ private fun DeleteBlockedDialog(
         confirmButton = { TextButton(onClick = onHide) { Text("Скрыть продукт") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
-}
-
-private fun pluralEntries(count: Int): String {
-    val mod10 = count % 10
-    val mod100 = count % 100
-    return if (mod10 == 1 && mod100 != 11) "записи" else "записях"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

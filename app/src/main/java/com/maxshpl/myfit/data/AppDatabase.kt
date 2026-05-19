@@ -10,6 +10,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.maxshpl.myfit.activities.Activity
 import com.maxshpl.myfit.activities.ActivityDao
 import com.maxshpl.myfit.activities.ActivitySeed
+import com.maxshpl.myfit.diary.ActivityLog
+import com.maxshpl.myfit.diary.ActivityLogDao
 import com.maxshpl.myfit.diary.DiaryEntry
 import com.maxshpl.myfit.diary.DiaryEntryDao
 import com.maxshpl.myfit.products.Product
@@ -21,8 +23,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Product::class, DiaryEntry::class, Activity::class],
-    version = 4,
+    entities = [Product::class, DiaryEntry::class, Activity::class, ActivityLog::class],
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -33,6 +35,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun diaryEntryDao(): DiaryEntryDao
 
     abstract fun activityDao(): ActivityDao
+
+    abstract fun activityLogDao(): ActivityLogDao
 
     companion object {
         private const val TAG = "MyFitDb"
@@ -49,7 +53,12 @@ abstract class AppDatabase : RoomDatabase() {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             return Room.databaseBuilder(appContext, AppDatabase::class.java, DB_NAME)
                 .addCallback(SeedCallback(scope))
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                )
                 .build()
         }
 

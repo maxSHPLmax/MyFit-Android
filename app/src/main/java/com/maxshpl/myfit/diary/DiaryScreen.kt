@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -40,7 +39,8 @@ fun DiaryScreen(
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var pendingDelete by remember { mutableStateOf<DiaryRow?>(null) }
+    var pendingDeleteRow by remember { mutableStateOf<DiaryRow?>(null) }
+    var pendingDeleteLog by remember { mutableStateOf<ActivityLogRow?>(null) }
 
     Scaffold(
         topBar = {
@@ -78,18 +78,22 @@ fun DiaryScreen(
                 FoodSection(
                     rows = state.rows,
                     onAddClick = onAddProductClick,
-                    onSwipeRow = { row -> pendingDelete = row },
+                    onSwipeRow = { row -> pendingDeleteRow = row },
                 )
             }
             item("activities") {
-                ActivitiesSection(onAddClick = onAddActivityClick)
+                ActivitiesSection(
+                    logs = state.activityLogs,
+                    onAddClick = onAddActivityClick,
+                    onSwipeLog = { log -> pendingDeleteLog = log },
+                )
             }
         }
     }
 
-    pendingDelete?.let { row ->
+    pendingDeleteRow?.let { row ->
         AlertDialog(
-            onDismissRequest = { pendingDelete = null },
+            onDismissRequest = { pendingDeleteRow = null },
             title = { Text("Удалить запись?") },
             text = {
                 Text(
@@ -101,11 +105,34 @@ fun DiaryScreen(
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.delete(row.entryId)
-                    pendingDelete = null
+                    pendingDeleteRow = null
                 }) { Text("Удалить") }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
+                TextButton(onClick = { pendingDeleteRow = null }) { Text("Отмена") }
+            },
+        )
+    }
+
+    pendingDeleteLog?.let { log ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteLog = null },
+            title = { Text("Удалить активность?") },
+            text = {
+                Text(
+                    "«${log.activityName}» — ${formatGrams(log.durationMinutes)} мин, " +
+                        "${formatKcal(log.kcalBurned)} ккал. Будет удалена без " +
+                        "возможности восстановления.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteActivityLog(log.logId)
+                    pendingDeleteLog = null
+                }) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteLog = null }) { Text("Отмена") }
             },
         )
     }
@@ -129,30 +156,6 @@ private fun PlanSection() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActivitiesSection(onAddClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            SectionHeader(
-                title = "Активности",
-                actionDescription = "Добавить активность",
-                onActionClick = onAddClick,
-            )
-            HorizontalDivider()
-            Text(
-                text = "Активностей нет",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
             )
         }
     }
