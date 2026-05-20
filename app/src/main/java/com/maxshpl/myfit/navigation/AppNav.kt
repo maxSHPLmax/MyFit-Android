@@ -30,6 +30,7 @@ import com.maxshpl.myfit.activities.AddEditActivityScreen
 import com.maxshpl.myfit.diary.AddActivityLogScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
+import com.maxshpl.myfit.history.HistoryScreen
 import com.maxshpl.myfit.plan.AddEditMealScreen
 import com.maxshpl.myfit.plan.PlanScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
@@ -209,7 +210,9 @@ fun AppNav() {
                 AddEditMealScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.HISTORY) {
-                PlaceholderScreen(title = "История")
+                HistoryScreen(
+                    onDayClick = { /* TODO commit 5: setLastViewedDate + navigate(Routes.DIARY) */ },
+                )
             }
             composable(Routes.PRODUCTS) {
                 ProductsScreen(
