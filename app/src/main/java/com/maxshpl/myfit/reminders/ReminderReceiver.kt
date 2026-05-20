@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.maxshpl.myfit.MainActivity
@@ -30,10 +31,20 @@ class ReminderReceiver : BroadcastReceiver() {
         ensureMealRemindersChannel(context)
         showNotification(context, mealKind)
 
-        // Self-perpetuating chain: реальные слоты перерасписываются на +24h
+        if (isTest) {
+            val scheduledAt = intent.getLongExtra(EXTRA_SCHEDULED_AT, 0L)
+            val nowMs = System.currentTimeMillis()
+            val drift = if (scheduledAt > 0) nowMs - scheduledAt else 0
+            Log.d(
+                TAG_REMINDERS,
+                "Test alarm fired at $nowMs, scheduled at $scheduledAt, drift=${drift}ms",
+            )
+            return
+        }
+
+        // Self-perpetuating chain для реальных слотов: перерасписываем на +24h
         // через тот же scheduleSlot — nextTriggerMillis вернёт завтрашний момент.
-        // Тестовые алярмы (debug-кнопка в коммите 7) — one-shot, без перерасписания.
-        if (!isTest && hour in 0..23 && minute in 0..59) {
+        if (hour in 0..23 && minute in 0..59) {
             ReminderScheduler(context).scheduleSlot(mealKind, hour, minute)
         }
     }
@@ -71,6 +82,9 @@ class ReminderReceiver : BroadcastReceiver() {
         const val EXTRA_HOUR = "hour"
         const val EXTRA_MINUTE = "minute"
         const val EXTRA_IS_TEST = "is_test"
+        const val EXTRA_SCHEDULED_AT = "scheduled_at"
         const val EXTRA_OPEN_DIARY_TODAY = "open_diary_today"
+
+        private const val TAG_REMINDERS = "MyFitReminders"
     }
 }

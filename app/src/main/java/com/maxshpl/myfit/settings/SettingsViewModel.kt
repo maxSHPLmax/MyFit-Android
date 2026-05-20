@@ -128,6 +128,10 @@ class SettingsViewModel(
      */
     fun canScheduleExact(): Boolean = reminderScheduler.canScheduleExact()
 
+    fun scheduleTestReminder() {
+        reminderScheduler.scheduleTest(TEST_REMINDER_DELAY_MS)
+    }
+
     fun setKcal(value: String) = updateField { it.copy(kcalText = value, kcalError = null) }
     fun setProtein(value: String) = updateField { it.copy(proteinText = value, proteinError = null) }
     fun setFat(value: String) = updateField { it.copy(fatText = value, fatError = null) }
@@ -167,6 +171,7 @@ class SettingsViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val ERR_POSITIVE = "Введите число больше 0"
+        private const val TEST_REMINDER_DELAY_MS = 60_000L
 
         val Factory = viewModelFactory {
             initializer {

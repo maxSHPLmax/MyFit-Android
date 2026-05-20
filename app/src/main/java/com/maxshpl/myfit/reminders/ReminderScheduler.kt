@@ -62,6 +62,28 @@ class ReminderScheduler(private val context: Context) {
     }
 
     /**
+     * Debug-кнопка из Settings (BuildConfig.DEBUG): one-shot алярм через
+     * delayMs мс. is_test=true чтобы ReminderReceiver не перерасписывал
+     * на +24h и залогировал drift. Использует MealKind.BREAKFAST для
+     * notification title — пользователь видит ровно что увидит в реальности.
+     */
+    fun scheduleTest(delayMs: Long) {
+        val triggerAt = System.currentTimeMillis() + delayMs
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            putExtra(ReminderReceiver.EXTRA_MEAL_KIND, MealKind.BREAKFAST.name)
+            putExtra(ReminderReceiver.EXTRA_IS_TEST, true)
+            putExtra(ReminderReceiver.EXTRA_SCHEDULED_AT, triggerAt)
+        }
+        val pending = PendingIntent.getBroadcast(
+            context,
+            TEST_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        scheduleAlarm(triggerAt, pending)
+    }
+
+    /**
      * canScheduleExact — есть ли разрешение на точные алярмы.
      * На Android < 12 — всегда true (permission concept не существовал).
      * На 12+ зависит от грантa в системных настройках.
@@ -119,6 +141,12 @@ class ReminderScheduler(private val context: Context) {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
         )
+    }
+
+    private companion object {
+        // Уникальный requestCode для test alarm, чтобы не пересекаться с
+        // MealKind.ordinal (0..3). 100 — комфортно вне range.
+        const val TEST_REQUEST_CODE = 100
     }
 
     private fun nextTriggerMillis(hour: Int, minute: Int): Long {

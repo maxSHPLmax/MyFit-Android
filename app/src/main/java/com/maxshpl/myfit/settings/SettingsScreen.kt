@@ -165,6 +165,7 @@ fun SettingsScreen(
                             runCatching { context.startActivity(intent) }
                         }
                     },
+                    onTestClick = viewModel::scheduleTestReminder,
                 )
             }
             item("targets") {
@@ -215,6 +216,7 @@ private fun RemindersSection(
     onToggleSlot: (MealKind, Boolean) -> Unit,
     onSlotTimeClick: (MealKind) -> Unit,
     onRequestExactAlarms: () -> Unit,
+    onTestClick: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -258,6 +260,13 @@ private fun RemindersSection(
                     if (idx < MealKind.entries.lastIndex) {
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     }
+                }
+                if (BuildConfig.DEBUG) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onTestClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Тест: уведомление через 1 минуту") }
                 }
             }
         }
