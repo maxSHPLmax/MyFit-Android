@@ -56,11 +56,11 @@ fun AddActivityLogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Добавить активность") },
+                title = { Text(if (state.isEditing) "Изменить активность" else "Добавить активность") },
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            if (state.selectedActivity != null) {
+                            if (!state.isEditing && state.selectedActivity != null) {
                                 viewModel.clearSelection()
                             } else {
                                 onBack()

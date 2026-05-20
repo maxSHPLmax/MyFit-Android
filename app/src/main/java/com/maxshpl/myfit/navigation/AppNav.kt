@@ -38,6 +38,7 @@ object Routes {
     const val DIARY_ADD = "diary/add?date={date}"
     const val DIARY_EDIT = "diary/edit/{entryId}"
     const val DIARY_ADD_ACTIVITY = "diary/activity/add?date={date}"
+    const val DIARY_EDIT_ACTIVITY = "diary/activity/edit/{logId}"
     const val PLAN = "plan"
     const val HISTORY = "history"
     const val PRODUCTS = "products"
@@ -57,6 +58,8 @@ object Routes {
     fun diaryEdit(entryId: Long): String = "diary/edit/$entryId"
 
     fun diaryAddActivity(date: String): String = "diary/activity/add?date=$date"
+
+    fun diaryEditActivity(logId: Long): String = "diary/activity/edit/$logId"
 }
 
 object NavArgs {
@@ -64,6 +67,7 @@ object NavArgs {
     const val ACTIVITY_ID = "activityId"
     const val DATE = "date"
     const val ENTRY_ID = "entryId"
+    const val LOG_ID = "logId"
 }
 
 private enum class TopLevelTab(
@@ -109,6 +113,9 @@ fun AppNav() {
                     onEditEntryClick = { id ->
                         navController.navigate(Routes.diaryEdit(id))
                     },
+                    onEditActivityLogClick = { id ->
+                        navController.navigate(Routes.diaryEditActivity(id))
+                    },
                 )
             }
             composable(
@@ -138,6 +145,15 @@ fun AppNav() {
                         defaultValue = null
                     },
                 ),
+            ) {
+                AddActivityLogScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToActivities = { navController.navigate(Routes.ACTIVITIES) },
+                )
+            }
+            composable(
+                route = Routes.DIARY_EDIT_ACTIVITY,
+                arguments = listOf(navArgument(NavArgs.LOG_ID) { type = NavType.LongType }),
             ) {
                 AddActivityLogScreen(
                     onBack = { navController.popBackStack() },

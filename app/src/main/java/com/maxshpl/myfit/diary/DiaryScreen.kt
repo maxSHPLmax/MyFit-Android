@@ -51,6 +51,7 @@ fun DiaryScreen(
     onAddProductClick: (LocalDate) -> Unit,
     onAddActivityClick: (LocalDate) -> Unit,
     onEditEntryClick: (Long) -> Unit,
+    onEditActivityLogClick: (Long) -> Unit,
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -109,6 +110,7 @@ fun DiaryScreen(
                 ActivitiesSection(
                     logs = state.activityLogs,
                     onAddClick = { onAddActivityClick(state.date) },
+                    onRowClick = { log -> onEditActivityLogClick(log.logId) },
                     onSwipeLog = { log -> pendingDeleteLog = log },
                 )
             }

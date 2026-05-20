@@ -23,6 +23,7 @@ import java.time.format.DateTimeParseException
 
 data class AddActivityLogUiState(
     val isLoading: Boolean = true,
+    val isEditing: Boolean = false,
     val query: String = "",
     val activities: List<Activity> = emptyList(),
     val selectedActivity: Activity? = null,
@@ -38,8 +39,12 @@ class AddActivityLogViewModel(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
+    private val editingLogId: Long? = savedStateHandle.get<Long>(NavArgs.LOG_ID)
     private val targetDate: LocalDate = parseDateArg(savedStateHandle[NavArgs.DATE])
 
+    private var editingLog: ActivityLog? = null
+
+    private val _isEditing = MutableStateFlow(editingLogId != null)
     private val _query = MutableStateFlow("")
     private val _selectedActivity = MutableStateFlow<Activity?>(null)
     private val _durationText = MutableStateFlow("")
@@ -52,11 +57,13 @@ class AddActivityLogViewModel(
         _query,
         _selectedActivity,
         combine(_durationText, _durationError, _isSaving, _saveCompleted, ::DurationBlock),
-    ) { activities, query, selected, duration ->
+        _isEditing,
+    ) { activities, query, selected, duration, isEditing ->
         val filtered = if (query.isBlank()) activities
         else activities.filter { it.name.contains(query.trim(), ignoreCase = true) }
         AddActivityLogUiState(
             isLoading = false,
+            isEditing = isEditing,
             query = query,
             activities = filtered,
             selectedActivity = selected,
@@ -68,18 +75,32 @@ class AddActivityLogViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = AddActivityLogUiState(),
+        initialValue = AddActivityLogUiState(isEditing = editingLogId != null),
     )
+
+    init {
+        if (editingLogId != null) {
+            viewModelScope.launch {
+                val log = activityLogRepository.getById(editingLogId) ?: return@launch
+                val activity = activityRepository.getById(log.activityId) ?: return@launch
+                editingLog = log
+                _selectedActivity.update { activity }
+                _durationText.update { durationToText(log.durationMinutes) }
+            }
+        }
+    }
 
     fun setQuery(value: String) = _query.update { value }
 
     fun selectActivity(activity: Activity) {
+        if (_isEditing.value) return
         _selectedActivity.update { activity }
         _durationText.update { "" }
         _durationError.update { null }
     }
 
     fun clearSelection() {
+        if (_isEditing.value) return
         _selectedActivity.update { null }
         _durationText.update { "" }
         _durationError.update { null }
@@ -100,7 +121,12 @@ class AddActivityLogViewModel(
         if (_isSaving.value) return
         _isSaving.update { true }
         viewModelScope.launch {
-            activityLogRepository.add(targetDate, activity.id, duration)
+            val existing = editingLog
+            if (existing != null) {
+                activityLogRepository.update(existing.copy(durationMinutes = duration))
+            } else {
+                activityLogRepository.add(targetDate, activity.id, duration)
+            }
             _saveCompleted.update { true }
         }
     }
@@ -112,6 +138,9 @@ class AddActivityLogViewModel(
         val value = normalized.toDoubleOrNull() ?: return null
         return value.takeIf { it > 0.0 }
     }
+
+    private fun durationToText(minutes: Double): String =
+        if (minutes % 1.0 == 0.0) minutes.toInt().toString() else "%.1f".format(minutes)
 
     private data class DurationBlock(
         val text: String,
