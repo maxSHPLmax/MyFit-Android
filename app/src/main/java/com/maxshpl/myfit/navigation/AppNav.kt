@@ -30,6 +30,7 @@ import com.maxshpl.myfit.activities.AddEditActivityScreen
 import com.maxshpl.myfit.diary.AddActivityLogScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
+import com.maxshpl.myfit.plan.AddEditMealScreen
 import com.maxshpl.myfit.plan.PlanScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
 import com.maxshpl.myfit.products.ProductsScreen
@@ -41,6 +42,8 @@ object Routes {
     const val DIARY_ADD_ACTIVITY = "diary/activity/add?date={date}"
     const val DIARY_EDIT_ACTIVITY = "diary/activity/edit/{logId}"
     const val PLAN = "plan"
+    const val PLAN_NEW_MEAL = "plan/meal/new?dayOfWeek={dayOfWeek}"
+    const val PLAN_EDIT_MEAL = "plan/meal/edit/{mealId}"
     const val HISTORY = "history"
     const val PRODUCTS = "products"
     const val PRODUCT_NEW = "products/new"
@@ -61,6 +64,11 @@ object Routes {
     fun diaryAddActivity(date: String): String = "diary/activity/add?date=$date"
 
     fun diaryEditActivity(logId: Long): String = "diary/activity/edit/$logId"
+
+    fun planNewMeal(dayOfWeek: java.time.DayOfWeek): String =
+        "plan/meal/new?dayOfWeek=${dayOfWeek.name}"
+
+    fun planEditMeal(mealId: Long): String = "plan/meal/edit/$mealId"
 }
 
 object NavArgs {
@@ -69,6 +77,8 @@ object NavArgs {
     const val DATE = "date"
     const val ENTRY_ID = "entryId"
     const val LOG_ID = "logId"
+    const val MEAL_ID = "mealId"
+    const val DAY_OF_WEEK = "dayOfWeek"
 }
 
 private enum class TopLevelTab(
@@ -163,9 +173,31 @@ fun AppNav() {
             }
             composable(Routes.PLAN) {
                 PlanScreen(
-                    onAddMealClick = { /* TODO commit 4: navigate to add-meal */ },
-                    onEditMealClick = { /* TODO commit 4: navigate to edit-meal */ },
+                    onAddMealClick = { day ->
+                        navController.navigate(Routes.planNewMeal(day))
+                    },
+                    onEditMealClick = { id ->
+                        navController.navigate(Routes.planEditMeal(id))
+                    },
                 )
+            }
+            composable(
+                route = Routes.PLAN_NEW_MEAL,
+                arguments = listOf(
+                    navArgument(NavArgs.DAY_OF_WEEK) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
+                AddEditMealScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                route = Routes.PLAN_EDIT_MEAL,
+                arguments = listOf(navArgument(NavArgs.MEAL_ID) { type = NavType.LongType }),
+            ) {
+                AddEditMealScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.HISTORY) {
                 PlaceholderScreen(title = "История")
