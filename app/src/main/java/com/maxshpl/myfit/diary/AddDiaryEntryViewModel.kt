@@ -22,6 +22,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
 data class AddDiaryEntryUiState(
+    val isEditing: Boolean = false,
     val query: String = "",
     val products: List<Product> = emptyList(),
     val selectedProduct: Product? = null,
@@ -37,8 +38,12 @@ class AddDiaryEntryViewModel(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
+    private val editingEntryId: Long? = savedStateHandle.get<Long>(NavArgs.ENTRY_ID)
     private val targetDate: LocalDate = parseDateArg(savedStateHandle[NavArgs.DATE])
 
+    private var editingEntry: DiaryEntry? = null
+
+    private val _isEditing = MutableStateFlow(editingEntryId != null)
     private val _query = MutableStateFlow("")
     private val _selectedProduct = MutableStateFlow<Product?>(null)
     private val _gramsText = MutableStateFlow("")
@@ -63,8 +68,10 @@ class AddDiaryEntryViewModel(
         filteredProducts,
         _selectedProduct,
         combine(_gramsText, _gramsError, _isSaving, _saveCompleted, ::Quad),
-    ) { query, products, selected, gramsBlock ->
+        _isEditing,
+    ) { query, products, selected, gramsBlock, isEditing ->
         AddDiaryEntryUiState(
+            isEditing = isEditing,
             query = query,
             products = products,
             selectedProduct = selected,
@@ -76,18 +83,32 @@ class AddDiaryEntryViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = AddDiaryEntryUiState(),
+        initialValue = AddDiaryEntryUiState(isEditing = editingEntryId != null),
     )
+
+    init {
+        if (editingEntryId != null) {
+            viewModelScope.launch {
+                val entry = diaryRepository.getById(editingEntryId) ?: return@launch
+                val product = productRepository.getById(entry.productId) ?: return@launch
+                editingEntry = entry
+                _selectedProduct.update { product }
+                _gramsText.update { gramsToText(entry.grams) }
+            }
+        }
+    }
 
     fun setQuery(value: String) = _query.update { value }
 
     fun selectProduct(product: Product) {
+        if (_isEditing.value) return
         _selectedProduct.update { product }
         _gramsText.update { "" }
         _gramsError.update { null }
     }
 
     fun clearSelection() {
+        if (_isEditing.value) return
         _selectedProduct.update { null }
         _gramsText.update { "" }
         _gramsError.update { null }
@@ -108,7 +129,12 @@ class AddDiaryEntryViewModel(
         if (_isSaving.value) return
         _isSaving.update { true }
         viewModelScope.launch {
-            diaryRepository.add(date = targetDate, productId = product.id, grams = grams)
+            val existing = editingEntry
+            if (existing != null) {
+                diaryRepository.update(existing.copy(grams = grams))
+            } else {
+                diaryRepository.add(date = targetDate, productId = product.id, grams = grams)
+            }
             _saveCompleted.update { true }
         }
     }
@@ -120,6 +146,9 @@ class AddDiaryEntryViewModel(
         val value = normalized.toDoubleOrNull() ?: return null
         return value.takeIf { it > 0.0 }
     }
+
+    private fun gramsToText(grams: Double): String =
+        if (grams % 1.0 == 0.0) grams.toInt().toString() else "%.1f".format(grams)
 
     private data class Quad(
         val gramsText: String,

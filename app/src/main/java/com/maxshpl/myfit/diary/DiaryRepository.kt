@@ -29,6 +29,10 @@ class DiaryRepository(private val dao: DiaryEntryDao) {
         ),
     )
 
+    suspend fun update(entry: DiaryEntry) = dao.update(entry)
+
+    suspend fun getById(id: Long): DiaryEntry? = dao.getById(id)
+
     suspend fun delete(entry: DiaryEntry) = dao.delete(entry)
 
     suspend fun deleteById(id: Long) = dao.deleteById(id)

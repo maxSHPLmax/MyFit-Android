@@ -36,6 +36,7 @@ import com.maxshpl.myfit.products.ProductsScreen
 object Routes {
     const val DIARY = "diary"
     const val DIARY_ADD = "diary/add?date={date}"
+    const val DIARY_EDIT = "diary/edit/{entryId}"
     const val DIARY_ADD_ACTIVITY = "diary/activity/add?date={date}"
     const val PLAN = "plan"
     const val HISTORY = "history"
@@ -53,6 +54,8 @@ object Routes {
 
     fun diaryAdd(date: String): String = "diary/add?date=$date"
 
+    fun diaryEdit(entryId: Long): String = "diary/edit/$entryId"
+
     fun diaryAddActivity(date: String): String = "diary/activity/add?date=$date"
 }
 
@@ -60,6 +63,7 @@ object NavArgs {
     const val PRODUCT_ID = "id"
     const val ACTIVITY_ID = "activityId"
     const val DATE = "date"
+    const val ENTRY_ID = "entryId"
 }
 
 private enum class TopLevelTab(
@@ -102,6 +106,9 @@ fun AppNav() {
                     onAddActivityClick = { date ->
                         navController.navigate(Routes.diaryAddActivity(date.toString()))
                     },
+                    onEditEntryClick = { id ->
+                        navController.navigate(Routes.diaryEdit(id))
+                    },
                 )
             }
             composable(
@@ -113,6 +120,12 @@ fun AppNav() {
                         defaultValue = null
                     },
                 ),
+            ) {
+                AddDiaryEntryScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                route = Routes.DIARY_EDIT,
+                arguments = listOf(navArgument(NavArgs.ENTRY_ID) { type = NavType.LongType }),
             ) {
                 AddDiaryEntryScreen(onBack = { navController.popBackStack() })
             }

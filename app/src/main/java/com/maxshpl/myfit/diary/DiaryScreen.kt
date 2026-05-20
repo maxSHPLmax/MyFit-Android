@@ -50,6 +50,7 @@ private val HeaderDateFormatter: DateTimeFormatter =
 fun DiaryScreen(
     onAddProductClick: (LocalDate) -> Unit,
     onAddActivityClick: (LocalDate) -> Unit,
+    onEditEntryClick: (Long) -> Unit,
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -100,6 +101,7 @@ fun DiaryScreen(
                 FoodSection(
                     rows = state.rows,
                     onAddClick = { onAddProductClick(state.date) },
+                    onRowClick = { row -> onEditEntryClick(row.entryId) },
                     onSwipeRow = { row -> pendingDeleteRow = row },
                 )
             }
