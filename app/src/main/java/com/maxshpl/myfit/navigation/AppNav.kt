@@ -1,11 +1,11 @@
 package com.maxshpl.myfit.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.annotation.DrawableRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -30,6 +31,7 @@ import com.maxshpl.myfit.activities.AddEditActivityScreen
 import com.maxshpl.myfit.diary.AddActivityLogScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
+import com.maxshpl.myfit.R
 import com.maxshpl.myfit.history.HistoryScreen
 import com.maxshpl.myfit.plan.AddEditMealScreen
 import com.maxshpl.myfit.plan.PlanScreen
@@ -85,13 +87,14 @@ object NavArgs {
 private enum class TopLevelTab(
     val route: String,
     val label: String,
-    val icon: ImageVector,
+    val icon: ImageVector? = null,
+    @DrawableRes val iconRes: Int? = null,
 ) {
-    Diary(Routes.DIARY, "Дневник", Icons.Default.Home),
-    Plan(Routes.PLAN, "План", Icons.Default.DateRange),
-    History(Routes.HISTORY, "История", Icons.Default.Refresh),
-    Products(Routes.PRODUCTS, "Продукты", Icons.AutoMirrored.Filled.List),
-    Settings(Routes.SETTINGS, "Настройки", Icons.Default.Settings),
+    Diary(Routes.DIARY, "Дневник", icon = Icons.Default.Home),
+    Plan(Routes.PLAN, "План", icon = Icons.Default.DateRange),
+    History(Routes.HISTORY, "История", iconRes = R.drawable.ic_bar_chart_24),
+    Products(Routes.PRODUCTS, "Продукты", icon = Icons.AutoMirrored.Filled.List),
+    Settings(Routes.SETTINGS, "Настройки", icon = Icons.Default.Settings),
 }
 
 private val TopLevelRoutes: Set<String> = TopLevelTab.entries.map { it.route }.toSet()
@@ -211,7 +214,15 @@ fun AppNav() {
             }
             composable(Routes.HISTORY) {
                 HistoryScreen(
-                    onDayClick = { /* TODO commit 5: setLastViewedDate + navigate(Routes.DIARY) */ },
+                    onNavigateToDiary = {
+                        navController.navigate(Routes.DIARY) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(Routes.PRODUCTS) {
@@ -285,7 +296,15 @@ private fun AppBottomBar(
                         }
                     }
                 },
-                icon = { Icon(tab.icon, contentDescription = null) },
+                icon = {
+                    when {
+                        tab.icon != null -> Icon(tab.icon, contentDescription = null)
+                        tab.iconRes != null -> Icon(
+                            painter = painterResource(tab.iconRes),
+                            contentDescription = null,
+                        )
+                    }
+                },
                 label = { Text(tab.label) },
             )
         }

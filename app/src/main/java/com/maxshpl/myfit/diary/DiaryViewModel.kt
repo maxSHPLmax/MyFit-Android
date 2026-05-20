@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -117,8 +116,23 @@ class DiaryViewModel(
     )
 
     init {
+        // Подписываемся на DataStore — DiaryDateRepository как единый источник истины.
+        // Это позволяет внешним экранам (например, History) переключать дату через
+        // setLastViewedDate, и Diary VM реагирует автоматически.
+        //
+        // Защита от race: если значение из DataStore совпадает с текущим — не
+        // перезаписываем. Иначе при setDate(X) перед завершением записи в DataStore
+        // collect мог бы прислать старое значение и откатить UI.
+        //
+        // Edge case первого запуска: DataStore пуст → repository.lastViewedDate
+        // возвращает LocalDate.now() сразу через .map{} (см. DiaryDateRepository).
+        // Никакого ожидания, никакого спиннера — initial value uiState уже today.
         viewModelScope.launch {
-            _selectedDate.value = dateRepository.lastViewedDate.first()
+            dateRepository.lastViewedDate.collect { fromStore ->
+                if (fromStore != _selectedDate.value) {
+                    _selectedDate.value = fromStore
+                }
+            }
         }
     }
 

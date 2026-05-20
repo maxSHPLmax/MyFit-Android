@@ -37,7 +37,7 @@ private val DayCardDateFormatter: DateTimeFormatter =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    onDayClick: (LocalDate) -> Unit,
+    onNavigateToDiary: () -> Unit,
     viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -76,7 +76,10 @@ fun HistoryScreen(
                 )
             }
             items(state.days.reversed(), key = { it.date.toEpochDay() }) { day ->
-                DayCard(item = day, onClick = { onDayClick(day.date) })
+                DayCard(item = day, onClick = {
+                    viewModel.openDiary(day.date)
+                    onNavigateToDiary()
+                })
             }
         }
     }
