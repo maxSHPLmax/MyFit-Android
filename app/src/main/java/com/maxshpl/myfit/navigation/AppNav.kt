@@ -35,8 +35,8 @@ import com.maxshpl.myfit.products.ProductsScreen
 
 object Routes {
     const val DIARY = "diary"
-    const val DIARY_ADD = "diary/add"
-    const val DIARY_ADD_ACTIVITY = "diary/activity/add"
+    const val DIARY_ADD = "diary/add?date={date}"
+    const val DIARY_ADD_ACTIVITY = "diary/activity/add?date={date}"
     const val PLAN = "plan"
     const val HISTORY = "history"
     const val PRODUCTS = "products"
@@ -50,11 +50,16 @@ object Routes {
     fun productEdit(id: Long): String = "products/edit/$id"
 
     fun activityEdit(id: Long): String = "activities/edit/$id"
+
+    fun diaryAdd(date: String): String = "diary/add?date=$date"
+
+    fun diaryAddActivity(date: String): String = "diary/activity/add?date=$date"
 }
 
 object NavArgs {
     const val PRODUCT_ID = "id"
     const val ACTIVITY_ID = "activityId"
+    const val DATE = "date"
 }
 
 private enum class TopLevelTab(
@@ -91,14 +96,36 @@ fun AppNav() {
         ) {
             composable(Routes.DIARY) {
                 DiaryScreen(
-                    onAddProductClick = { navController.navigate(Routes.DIARY_ADD) },
-                    onAddActivityClick = { navController.navigate(Routes.DIARY_ADD_ACTIVITY) },
+                    onAddProductClick = { date ->
+                        navController.navigate(Routes.diaryAdd(date.toString()))
+                    },
+                    onAddActivityClick = { date ->
+                        navController.navigate(Routes.diaryAddActivity(date.toString()))
+                    },
                 )
             }
-            composable(Routes.DIARY_ADD) {
+            composable(
+                route = Routes.DIARY_ADD,
+                arguments = listOf(
+                    navArgument(NavArgs.DATE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
                 AddDiaryEntryScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.DIARY_ADD_ACTIVITY) {
+            composable(
+                route = Routes.DIARY_ADD_ACTIVITY,
+                arguments = listOf(
+                    navArgument(NavArgs.DATE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
                 AddActivityLogScreen(
                     onBack = { navController.popBackStack() },
                     onNavigateToActivities = { navController.navigate(Routes.ACTIVITIES) },

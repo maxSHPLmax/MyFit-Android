@@ -1,11 +1,14 @@
 package com.maxshpl.myfit.diary
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.navigation.NavArgs
 import com.maxshpl.myfit.products.Product
 import com.maxshpl.myfit.products.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +19,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 data class AddDiaryEntryUiState(
     val query: String = "",
@@ -30,9 +34,10 @@ data class AddDiaryEntryUiState(
 class AddDiaryEntryViewModel(
     private val productRepository: ProductRepository,
     private val diaryRepository: DiaryRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val today: LocalDate = LocalDate.now()
+    private val targetDate: LocalDate = parseDateArg(savedStateHandle[NavArgs.DATE])
 
     private val _query = MutableStateFlow("")
     private val _selectedProduct = MutableStateFlow<Product?>(null)
@@ -103,7 +108,7 @@ class AddDiaryEntryViewModel(
         if (_isSaving.value) return
         _isSaving.update { true }
         viewModelScope.launch {
-            diaryRepository.add(date = today, productId = product.id, grams = grams)
+            diaryRepository.add(date = targetDate, productId = product.id, grams = grams)
             _saveCompleted.update { true }
         }
     }
@@ -126,6 +131,14 @@ class AddDiaryEntryViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
+        private fun parseDateArg(raw: String?): LocalDate = raw?.let {
+            try {
+                LocalDate.parse(it)
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        } ?: LocalDate.now()
+
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY]
@@ -134,6 +147,7 @@ class AddDiaryEntryViewModel(
                 AddDiaryEntryViewModel(
                     productRepository = ProductRepository(db.productDao()),
                     diaryRepository = DiaryRepository(db.diaryEntryDao()),
+                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }

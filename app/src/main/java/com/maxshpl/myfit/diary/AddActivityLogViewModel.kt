@@ -1,13 +1,16 @@
 package com.maxshpl.myfit.diary
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.activities.Activity
 import com.maxshpl.myfit.activities.ActivityRepository
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.navigation.NavArgs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +19,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 data class AddActivityLogUiState(
     val isLoading: Boolean = true,
@@ -31,9 +35,10 @@ data class AddActivityLogUiState(
 class AddActivityLogViewModel(
     private val activityRepository: ActivityRepository,
     private val activityLogRepository: ActivityLogRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val today: LocalDate = LocalDate.now()
+    private val targetDate: LocalDate = parseDateArg(savedStateHandle[NavArgs.DATE])
 
     private val _query = MutableStateFlow("")
     private val _selectedActivity = MutableStateFlow<Activity?>(null)
@@ -95,7 +100,7 @@ class AddActivityLogViewModel(
         if (_isSaving.value) return
         _isSaving.update { true }
         viewModelScope.launch {
-            activityLogRepository.add(today, activity.id, duration)
+            activityLogRepository.add(targetDate, activity.id, duration)
             _saveCompleted.update { true }
         }
     }
@@ -118,6 +123,14 @@ class AddActivityLogViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
+        private fun parseDateArg(raw: String?): LocalDate = raw?.let {
+            try {
+                LocalDate.parse(it)
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        } ?: LocalDate.now()
+
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY]
@@ -126,6 +139,7 @@ class AddActivityLogViewModel(
                 AddActivityLogViewModel(
                     activityRepository = ActivityRepository(db.activityDao()),
                     activityLogRepository = ActivityLogRepository(db.activityLogDao()),
+                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }
