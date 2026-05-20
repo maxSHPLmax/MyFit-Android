@@ -117,8 +117,36 @@ class DiaryViewModel(
     )
 
     init {
+        // Cold start: применяем 3-day stale fallback однократно — после долгого
+        // перерыва открываем сегодня, а не "позавчера". Дальше repository — чистый
+        // источник истины: явные click-through из других экранов уважаются.
+        //
+        // Если fallback сработал, синхронизируем DataStore: setLastViewedDate await'ится
+        // до collect, и первый emit от .currentDate будет уже resolved-значением →
+        // защита `!= _selectedDate.value` спокойно даст no-op. Без sync write был бы
+        // цикл: collect получает stale → fallback в repository → today → но в store
+        // всё ещё stale → emit stale → ... (бесконечный пинг-понг).
+        //
+        // Защита от race на последующих emit'ах: пишем _selectedDate только если
+        // значение из DataStore отличается от текущего. Иначе параллельный setDate(X)
+        // + collect могли бы откатить UI.
         viewModelScope.launch {
-            _selectedDate.value = dateRepository.lastViewedDate.first()
+            val raw = dateRepository.currentDate.first()
+            val today = LocalDate.now()
+            val resolved = if (raw.isBefore(today.minusDays(STALE_THRESHOLD_DAYS))) {
+                today
+            } else {
+                raw
+            }
+            _selectedDate.value = resolved
+            if (resolved != raw) {
+                dateRepository.setLastViewedDate(resolved)
+            }
+            dateRepository.currentDate.collect { fromStore ->
+                if (fromStore != _selectedDate.value) {
+                    _selectedDate.value = fromStore
+                }
+            }
         }
     }
 
@@ -155,6 +183,10 @@ class DiaryViewModel(
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
+
+        // После N дней простоя cold start открывает сегодня, не последнюю дату.
+        // Применяется только в init, не в repository. См. init блок.
+        private const val STALE_THRESHOLD_DAYS = 3L
 
         val Factory = viewModelFactory {
             initializer {
