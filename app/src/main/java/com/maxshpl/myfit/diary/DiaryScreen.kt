@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.core.formatGrams
 import com.maxshpl.myfit.core.formatKcal
 import com.maxshpl.myfit.core.formatMacro
+import com.maxshpl.myfit.core.formatMinutes
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -146,7 +147,7 @@ fun DiaryScreen(
             title = { Text("Удалить запись?") },
             text = {
                 Text(
-                    "«${row.productName}» — ${formatGrams(row.grams)} г, " +
+                    "«${row.productName}» — ${formatGrams(row.grams)}, " +
                         "${formatKcal(row.kcal)} ккал. Будет удалена без " +
                         "возможности восстановления.",
                 )
@@ -169,7 +170,7 @@ fun DiaryScreen(
             title = { Text("Удалить активность?") },
             text = {
                 Text(
-                    "«${log.activityName}» — ${formatGrams(log.durationMinutes)} мин, " +
+                    "«${log.activityName}» — ${formatMinutes(log.durationMinutes)}, " +
                         "${formatKcal(log.kcalBurned)} ккал. Будет удалена без " +
                         "возможности восстановления.",
                 )

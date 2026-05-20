@@ -7,6 +7,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.maxshpl.myfit.core.formatMacro
 import com.maxshpl.myfit.data.AppDatabase
 import com.maxshpl.myfit.navigation.NavArgs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +64,7 @@ class AddEditActivityViewModel(
             _state.update {
                 it.copy(
                     name = activity.name,
-                    kcalPerMin = formatDouble(activity.kcalPerMin),
+                    kcalPerMin = formatMacro(activity.kcalPerMin),
                     isLoading = false,
                 )
             }
@@ -121,11 +122,6 @@ class AddEditActivityViewModel(
     }
 
     private fun String.normalizeDouble(): Double = replace(',', '.').toDouble()
-
-    private fun formatDouble(value: Double): String {
-        val rounded = (value * 10).toInt() / 10.0
-        return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else "%.1f".format(rounded)
-    }
 
     companion object {
         val Factory = viewModelFactory {

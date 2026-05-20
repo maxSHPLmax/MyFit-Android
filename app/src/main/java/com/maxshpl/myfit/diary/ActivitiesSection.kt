@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.maxshpl.myfit.core.formatKcal
+import com.maxshpl.myfit.core.formatMinutes
 
 @Composable
 fun ActivitiesSection(
@@ -130,7 +131,7 @@ private fun ActivityLogRowItem(log: ActivityLogRow, onClick: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${formatDuration(log.durationMinutes)} мин",
+                text = formatMinutes(log.durationMinutes),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -143,7 +144,3 @@ private fun ActivityLogRowItem(log: ActivityLogRow, onClick: () -> Unit) {
     }
 }
 
-private fun formatDuration(value: Double): String {
-    val rounded = (value * 10).toInt() / 10.0
-    return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else "%.1f".format(rounded)
-}

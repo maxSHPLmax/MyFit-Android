@@ -12,7 +12,10 @@ fun formatMacro(value: Double): String {
     return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else "%.1f".format(rounded)
 }
 
-// Сейчас алиас на formatMacro — единица "г" добавляется в call site.
-// В B-tech-1 коммите 2 переедет на формат "X г" со встроенной единицей
-// + семантически разделится с formatMinutes.
-fun formatGrams(value: Double): String = formatMacro(value)
+// formatGrams и formatMinutes — намеренно разные функции, хотя
+// математика одинаковая. Семантика важнее DRY: легче читать call site и
+// легче ловить ошибки "формат граммов на минутах" статически. Единица
+// встроена в результат, не дублировать в строках.
+fun formatGrams(value: Double): String = "${formatMacro(value)} г"
+
+fun formatMinutes(value: Double): String = "${formatMacro(value)} мин"

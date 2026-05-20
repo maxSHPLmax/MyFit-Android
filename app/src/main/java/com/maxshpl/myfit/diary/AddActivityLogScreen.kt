@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.activities.Activity
 import com.maxshpl.myfit.core.formatKcal
+import com.maxshpl.myfit.core.formatMacro
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -194,7 +195,7 @@ private fun ActivityPickerRow(activity: Activity, onClick: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${formatDouble(activity.kcalPerMin)} ккал/мин",
+                text = "${formatMacro(activity.kcalPerMin)} ккал/мин",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -226,7 +227,7 @@ private fun DurationEntry(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "${formatDouble(activity.kcalPerMin)} ккал/мин",
+                    text = "${formatMacro(activity.kcalPerMin)} ккал/мин",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -277,7 +278,3 @@ private fun computeBurnPreview(activity: Activity, durationText: String): Double
     return activity.kcalPerMin * duration
 }
 
-private fun formatDouble(value: Double): String {
-    val rounded = (value * 10).toInt() / 10.0
-    return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else "%.1f".format(rounded)
-}

@@ -161,7 +161,7 @@ private fun DiaryRowItem(row: DiaryRow, onClick: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${formatGrams(row.grams)} г",
+                text = formatGrams(row.grams),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
