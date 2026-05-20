@@ -14,6 +14,7 @@ import com.maxshpl.myfit.diary.ActivityLog
 import com.maxshpl.myfit.diary.ActivityLogDao
 import com.maxshpl.myfit.diary.DiaryEntry
 import com.maxshpl.myfit.diary.DiaryEntryDao
+import com.maxshpl.myfit.plan.PlanDao
 import com.maxshpl.myfit.plan.PlannedMeal
 import com.maxshpl.myfit.plan.PlannedMealItem
 import com.maxshpl.myfit.products.Product
@@ -46,6 +47,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun activityDao(): ActivityDao
 
     abstract fun activityLogDao(): ActivityLogDao
+
+    abstract fun planDao(): PlanDao
 
     companion object {
         private const val TAG = "MyFitDb"

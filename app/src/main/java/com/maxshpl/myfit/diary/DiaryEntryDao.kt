@@ -77,6 +77,9 @@ interface DiaryEntryDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entry: DiaryEntry): Long
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(entries: List<DiaryEntry>)
+
     @Update
     suspend fun update(entry: DiaryEntry)
 
@@ -85,4 +88,13 @@ interface DiaryEntryDao {
 
     @Query("DELETE FROM diary_entries WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query(
+        "SELECT DISTINCT from_meal_id FROM diary_entries " +
+            "WHERE date = :date AND from_meal_id IS NOT NULL",
+    )
+    fun observeAppliedMealIds(date: String): Flow<List<Long>>
+
+    @Query("DELETE FROM diary_entries WHERE from_meal_id = :mealId AND date = :date")
+    suspend fun deleteByMealAndDate(mealId: Long, date: String)
 }
