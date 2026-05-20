@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 data class ActivityLogRowDb(
@@ -51,8 +52,14 @@ interface ActivityLogDao {
     @Query("SELECT COUNT(*) FROM activity_log WHERE activity_id = :activityId")
     suspend fun countByActivityId(activityId: Long): Int
 
+    @Query("SELECT * FROM activity_log WHERE id = :id")
+    suspend fun getById(id: Long): ActivityLog?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(log: ActivityLog): Long
+
+    @Update
+    suspend fun update(log: ActivityLog)
 
     @Query("DELETE FROM activity_log WHERE id = :id")
     suspend fun deleteById(id: Long)

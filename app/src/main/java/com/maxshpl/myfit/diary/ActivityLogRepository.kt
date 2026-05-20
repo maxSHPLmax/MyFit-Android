@@ -21,6 +21,10 @@ class ActivityLogRepository(private val dao: ActivityLogDao) {
             ),
         )
 
+    suspend fun update(log: ActivityLog) = dao.update(log)
+
+    suspend fun getById(id: Long): ActivityLog? = dao.getById(id)
+
     suspend fun deleteById(id: Long) = dao.deleteById(id)
 
     suspend fun countByActivity(activityId: Long): Int = dao.countByActivityId(activityId)

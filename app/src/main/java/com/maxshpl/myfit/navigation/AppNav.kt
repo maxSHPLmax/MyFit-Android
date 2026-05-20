@@ -35,8 +35,10 @@ import com.maxshpl.myfit.products.ProductsScreen
 
 object Routes {
     const val DIARY = "diary"
-    const val DIARY_ADD = "diary/add"
-    const val DIARY_ADD_ACTIVITY = "diary/activity/add"
+    const val DIARY_ADD = "diary/add?date={date}"
+    const val DIARY_EDIT = "diary/edit/{entryId}"
+    const val DIARY_ADD_ACTIVITY = "diary/activity/add?date={date}"
+    const val DIARY_EDIT_ACTIVITY = "diary/activity/edit/{logId}"
     const val PLAN = "plan"
     const val HISTORY = "history"
     const val PRODUCTS = "products"
@@ -50,11 +52,22 @@ object Routes {
     fun productEdit(id: Long): String = "products/edit/$id"
 
     fun activityEdit(id: Long): String = "activities/edit/$id"
+
+    fun diaryAdd(date: String): String = "diary/add?date=$date"
+
+    fun diaryEdit(entryId: Long): String = "diary/edit/$entryId"
+
+    fun diaryAddActivity(date: String): String = "diary/activity/add?date=$date"
+
+    fun diaryEditActivity(logId: Long): String = "diary/activity/edit/$logId"
 }
 
 object NavArgs {
     const val PRODUCT_ID = "id"
     const val ACTIVITY_ID = "activityId"
+    const val DATE = "date"
+    const val ENTRY_ID = "entryId"
+    const val LOG_ID = "logId"
 }
 
 private enum class TopLevelTab(
@@ -91,14 +104,57 @@ fun AppNav() {
         ) {
             composable(Routes.DIARY) {
                 DiaryScreen(
-                    onAddProductClick = { navController.navigate(Routes.DIARY_ADD) },
-                    onAddActivityClick = { navController.navigate(Routes.DIARY_ADD_ACTIVITY) },
+                    onAddProductClick = { date ->
+                        navController.navigate(Routes.diaryAdd(date.toString()))
+                    },
+                    onAddActivityClick = { date ->
+                        navController.navigate(Routes.diaryAddActivity(date.toString()))
+                    },
+                    onEditEntryClick = { id ->
+                        navController.navigate(Routes.diaryEdit(id))
+                    },
+                    onEditActivityLogClick = { id ->
+                        navController.navigate(Routes.diaryEditActivity(id))
+                    },
                 )
             }
-            composable(Routes.DIARY_ADD) {
+            composable(
+                route = Routes.DIARY_ADD,
+                arguments = listOf(
+                    navArgument(NavArgs.DATE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
                 AddDiaryEntryScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.DIARY_ADD_ACTIVITY) {
+            composable(
+                route = Routes.DIARY_EDIT,
+                arguments = listOf(navArgument(NavArgs.ENTRY_ID) { type = NavType.LongType }),
+            ) {
+                AddDiaryEntryScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                route = Routes.DIARY_ADD_ACTIVITY,
+                arguments = listOf(
+                    navArgument(NavArgs.DATE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
+                AddActivityLogScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToActivities = { navController.navigate(Routes.ACTIVITIES) },
+                )
+            }
+            composable(
+                route = Routes.DIARY_EDIT_ACTIVITY,
+                arguments = listOf(navArgument(NavArgs.LOG_ID) { type = NavType.LongType }),
+            ) {
                 AddActivityLogScreen(
                     onBack = { navController.popBackStack() },
                     onNavigateToActivities = { navController.navigate(Routes.ACTIVITIES) },

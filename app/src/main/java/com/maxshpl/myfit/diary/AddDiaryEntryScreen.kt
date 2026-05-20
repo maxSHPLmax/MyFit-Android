@@ -54,11 +54,11 @@ fun AddDiaryEntryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Добавить продукт") },
+                title = { Text(if (state.isEditing) "Изменить запись" else "Добавить продукт") },
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            if (state.selectedProduct != null) {
+                            if (!state.isEditing && state.selectedProduct != null) {
                                 viewModel.clearSelection()
                             } else {
                                 onBack()

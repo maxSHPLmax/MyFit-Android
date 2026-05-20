@@ -1,6 +1,7 @@
 package com.maxshpl.myfit.diary
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 fun ActivitiesSection(
     logs: List<ActivityLogRow>,
     onAddClick: () -> Unit,
+    onRowClick: (ActivityLogRow) -> Unit,
     onSwipeLog: (ActivityLogRow) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -53,7 +55,11 @@ fun ActivitiesSection(
                 Column {
                     logs.forEach { log ->
                         key(log.logId) {
-                            SwipeableActivityLogRow(log = log, onSwipe = { onSwipeLog(log) })
+                            SwipeableActivityLogRow(
+                                log = log,
+                                onClick = { onRowClick(log) },
+                                onSwipe = { onSwipeLog(log) },
+                            )
                         }
                     }
                 }
@@ -64,8 +70,13 @@ fun ActivitiesSection(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeableActivityLogRow(log: ActivityLogRow, onSwipe: () -> Unit) {
+private fun SwipeableActivityLogRow(
+    log: ActivityLogRow,
+    onClick: () -> Unit,
+    onSwipe: () -> Unit,
+) {
     val currentOnSwipe by rememberUpdatedState(onSwipe)
+    val currentOnClick by rememberUpdatedState(onClick)
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled) {
@@ -80,7 +91,7 @@ private fun SwipeableActivityLogRow(log: ActivityLogRow, onSwipe: () -> Unit) {
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = true,
     ) {
-        ActivityLogRowItem(log = log)
+        ActivityLogRowItem(log = log, onClick = { currentOnClick() })
     }
 }
 
@@ -103,11 +114,12 @@ private fun SwipeBackground() {
 }
 
 @Composable
-private fun ActivityLogRowItem(log: ActivityLogRow) {
+private fun ActivityLogRowItem(log: ActivityLogRow, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

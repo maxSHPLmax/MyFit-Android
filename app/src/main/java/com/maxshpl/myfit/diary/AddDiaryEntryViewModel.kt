@@ -1,11 +1,14 @@
 package com.maxshpl.myfit.diary
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.navigation.NavArgs
 import com.maxshpl.myfit.products.Product
 import com.maxshpl.myfit.products.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,8 +19,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 data class AddDiaryEntryUiState(
+    val isEditing: Boolean = false,
     val query: String = "",
     val products: List<Product> = emptyList(),
     val selectedProduct: Product? = null,
@@ -30,10 +35,15 @@ data class AddDiaryEntryUiState(
 class AddDiaryEntryViewModel(
     private val productRepository: ProductRepository,
     private val diaryRepository: DiaryRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val today: LocalDate = LocalDate.now()
+    private val editingEntryId: Long? = savedStateHandle.get<Long>(NavArgs.ENTRY_ID)
+    private val targetDate: LocalDate = parseDateArg(savedStateHandle[NavArgs.DATE])
 
+    private var editingEntry: DiaryEntry? = null
+
+    private val _isEditing = MutableStateFlow(editingEntryId != null)
     private val _query = MutableStateFlow("")
     private val _selectedProduct = MutableStateFlow<Product?>(null)
     private val _gramsText = MutableStateFlow("")
@@ -58,8 +68,10 @@ class AddDiaryEntryViewModel(
         filteredProducts,
         _selectedProduct,
         combine(_gramsText, _gramsError, _isSaving, _saveCompleted, ::Quad),
-    ) { query, products, selected, gramsBlock ->
+        _isEditing,
+    ) { query, products, selected, gramsBlock, isEditing ->
         AddDiaryEntryUiState(
+            isEditing = isEditing,
             query = query,
             products = products,
             selectedProduct = selected,
@@ -71,18 +83,32 @@ class AddDiaryEntryViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = AddDiaryEntryUiState(),
+        initialValue = AddDiaryEntryUiState(isEditing = editingEntryId != null),
     )
+
+    init {
+        if (editingEntryId != null) {
+            viewModelScope.launch {
+                val entry = diaryRepository.getById(editingEntryId) ?: return@launch
+                val product = productRepository.getById(entry.productId) ?: return@launch
+                editingEntry = entry
+                _selectedProduct.update { product }
+                _gramsText.update { gramsToText(entry.grams) }
+            }
+        }
+    }
 
     fun setQuery(value: String) = _query.update { value }
 
     fun selectProduct(product: Product) {
+        if (_isEditing.value) return
         _selectedProduct.update { product }
         _gramsText.update { "" }
         _gramsError.update { null }
     }
 
     fun clearSelection() {
+        if (_isEditing.value) return
         _selectedProduct.update { null }
         _gramsText.update { "" }
         _gramsError.update { null }
@@ -103,7 +129,12 @@ class AddDiaryEntryViewModel(
         if (_isSaving.value) return
         _isSaving.update { true }
         viewModelScope.launch {
-            diaryRepository.add(date = today, productId = product.id, grams = grams)
+            val existing = editingEntry
+            if (existing != null) {
+                diaryRepository.update(existing.copy(grams = grams))
+            } else {
+                diaryRepository.add(date = targetDate, productId = product.id, grams = grams)
+            }
             _saveCompleted.update { true }
         }
     }
@@ -116,6 +147,9 @@ class AddDiaryEntryViewModel(
         return value.takeIf { it > 0.0 }
     }
 
+    private fun gramsToText(grams: Double): String =
+        if (grams % 1.0 == 0.0) grams.toInt().toString() else "%.1f".format(grams)
+
     private data class Quad(
         val gramsText: String,
         val gramsError: String?,
@@ -126,6 +160,14 @@ class AddDiaryEntryViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
+        private fun parseDateArg(raw: String?): LocalDate = raw?.let {
+            try {
+                LocalDate.parse(it)
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        } ?: LocalDate.now()
+
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY]
@@ -134,6 +176,7 @@ class AddDiaryEntryViewModel(
                 AddDiaryEntryViewModel(
                     productRepository = ProductRepository(db.productDao()),
                     diaryRepository = DiaryRepository(db.diaryEntryDao()),
+                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }

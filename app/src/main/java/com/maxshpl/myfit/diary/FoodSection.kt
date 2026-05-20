@@ -1,6 +1,7 @@
 package com.maxshpl.myfit.diary
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 fun FoodSection(
     rows: List<DiaryRow>,
     onAddClick: () -> Unit,
+    onRowClick: (DiaryRow) -> Unit,
     onSwipeRow: (DiaryRow) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -58,7 +60,11 @@ fun FoodSection(
                 Column {
                     rows.forEach { row ->
                         key(row.entryId) {
-                            SwipeableDiaryRow(row = row, onSwipe = { onSwipeRow(row) })
+                            SwipeableDiaryRow(
+                                row = row,
+                                onClick = { onRowClick(row) },
+                                onSwipe = { onSwipeRow(row) },
+                            )
                         }
                     }
                 }
@@ -97,8 +103,9 @@ internal fun SectionHeader(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeableDiaryRow(row: DiaryRow, onSwipe: () -> Unit) {
+private fun SwipeableDiaryRow(row: DiaryRow, onClick: () -> Unit, onSwipe: () -> Unit) {
     val currentOnSwipe by rememberUpdatedState(onSwipe)
+    val currentOnClick by rememberUpdatedState(onClick)
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled) {
@@ -113,7 +120,7 @@ private fun SwipeableDiaryRow(row: DiaryRow, onSwipe: () -> Unit) {
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = true,
     ) {
-        DiaryRowItem(row = row)
+        DiaryRowItem(row = row, onClick = { currentOnClick() })
     }
 }
 
@@ -136,11 +143,12 @@ private fun SwipeBackground() {
 }
 
 @Composable
-private fun DiaryRowItem(row: DiaryRow) {
+private fun DiaryRowItem(row: DiaryRow, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

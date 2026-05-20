@@ -6,6 +6,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 data class DiaryRowDb(
@@ -70,8 +71,14 @@ interface DiaryEntryDao {
     @Query("SELECT COUNT(*) FROM diary_entries WHERE product_id = :productId")
     suspend fun countByProduct(productId: Long): Int
 
+    @Query("SELECT * FROM diary_entries WHERE id = :id")
+    suspend fun getById(id: Long): DiaryEntry?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entry: DiaryEntry): Long
+
+    @Update
+    suspend fun update(entry: DiaryEntry)
 
     @Delete
     suspend fun delete(entry: DiaryEntry)
