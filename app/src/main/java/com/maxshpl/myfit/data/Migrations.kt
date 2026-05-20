@@ -24,13 +24,6 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 }
 
 /**
- * SQLite не поддерживает прямой `ALTER COLUMN ... DROP NOT NULL`,
- * поэтому делаем classic table-recreate dance: новая таблица → INSERT
- * существующих данных → DROP старой → RENAME. Индексы и FK
- * восстанавливаются вручную, потому что DROP уничтожает их вместе с
- * таблицей.
- */
-/**
  * Аддитивная миграция: добавляет справочник активностей с UNIQUE-индексом
  * по name. Сразу после CREATE — seed через INSERT OR IGNORE, чтобы
  * пользователи, обновляющиеся с v3, не получили пустой экран Activities

@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +55,7 @@ fun PlanScreen(
 ) {
     val selectedDay by viewModel.selectedDay.collectAsStateWithLifecycle()
     val meals by viewModel.meals.collectAsStateWithLifecycle()
-    var pendingDeleteMeal by remember { mutableStateOf<PlannedMealRow?>(null) }
+    var pendingDeleteMealId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("План") }) },
@@ -88,7 +89,7 @@ fun PlanScreen(
                         SwipeableMealCard(
                             meal = meal,
                             onClick = { onEditMealClick(meal.id) },
-                            onSwipe = { pendingDeleteMeal = meal },
+                            onSwipe = { pendingDeleteMealId = meal.id },
                         )
                     }
                 }
@@ -96,26 +97,31 @@ fun PlanScreen(
         }
     }
 
-    pendingDeleteMeal?.let { meal ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteMeal = null },
-            title = { Text("Удалить приём?") },
-            text = {
-                Text(
-                    "«${meal.name}» будет удалён из плана. Записи в дневнике, " +
-                        "созданные из этого приёма, останутся — просто потеряют связь.",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteMeal(meal.id)
-                    pendingDeleteMeal = null
-                }) { Text("Удалить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteMeal = null }) { Text("Отмена") }
-            },
-        )
+    pendingDeleteMealId?.let { id ->
+        val meal = meals.find { it.id == id }
+        if (meal == null) {
+            pendingDeleteMealId = null
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteMealId = null },
+                title = { Text("Удалить приём?") },
+                text = {
+                    Text(
+                        "«${meal.name}» будет удалён из плана. Записи в дневнике, " +
+                            "созданные из этого приёма, останутся — просто потеряют связь.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteMeal(meal.id)
+                        pendingDeleteMealId = null
+                    }) { Text("Удалить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteMealId = null }) { Text("Отмена") }
+                },
+            )
+        }
     }
 }
 
