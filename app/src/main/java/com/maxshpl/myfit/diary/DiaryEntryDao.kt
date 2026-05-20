@@ -9,6 +9,14 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+data class DailyTotalsRowDb(
+    val date: String,
+    val kcal: Double,
+    val protein: Double,
+    val fat: Double,
+    val carbs: Double,
+)
+
 data class DiaryRowDb(
     val id: Long,
     @ColumnInfo(name = "product_id")
@@ -94,6 +102,25 @@ interface DiaryEntryDao {
             "WHERE date = :date AND from_meal_id IS NOT NULL",
     )
     fun observeAppliedMealIds(date: String): Flow<List<Long>>
+
+    @Query(
+        """
+        SELECT
+            e.date                                            AS date,
+            SUM(p.kcal_per_100g    * e.grams / 100.0)         AS kcal,
+            SUM(p.protein_per_100g * e.grams / 100.0)         AS protein,
+            SUM(p.fat_per_100g     * e.grams / 100.0)         AS fat,
+            SUM(p.carbs_per_100g   * e.grams / 100.0)         AS carbs
+        FROM diary_entries e
+        JOIN products p ON p.id = e.product_id
+        WHERE e.date BETWEEN :startDate AND :endDate
+        GROUP BY e.date
+        """,
+    )
+    fun observeDailyTotalsByRange(
+        startDate: String,
+        endDate: String,
+    ): Flow<List<DailyTotalsRowDb>>
 
     @Query("DELETE FROM diary_entries WHERE from_meal_id = :mealId AND date = :date")
     suspend fun deleteByMealAndDate(mealId: Long, date: String)

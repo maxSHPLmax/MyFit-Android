@@ -20,6 +20,12 @@ data class ActivityLogRowDb(
     val kcalPerMin: Double,
 )
 
+data class DailyBurnedRowDb(
+    val date: String,
+    @ColumnInfo(name = "kcal_burned")
+    val kcalBurned: Double,
+)
+
 @Dao
 interface ActivityLogDao {
 
@@ -51,6 +57,22 @@ interface ActivityLogDao {
 
     @Query("SELECT COUNT(*) FROM activity_log WHERE activity_id = :activityId")
     suspend fun countByActivityId(activityId: Long): Int
+
+    @Query(
+        """
+        SELECT
+            l.date                                        AS date,
+            SUM(a.kcal_per_min * l.duration_minutes)      AS kcal_burned
+        FROM activity_log l
+        JOIN activities a ON a.id = l.activity_id
+        WHERE l.date BETWEEN :startDate AND :endDate
+        GROUP BY l.date
+        """,
+    )
+    fun observeDailyKcalByRange(
+        startDate: String,
+        endDate: String,
+    ): Flow<List<DailyBurnedRowDb>>
 
     @Query("SELECT * FROM activity_log WHERE id = :id")
     suspend fun getById(id: Long): ActivityLog?
