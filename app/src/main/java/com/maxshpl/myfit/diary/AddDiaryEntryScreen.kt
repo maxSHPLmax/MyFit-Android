@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.maxshpl.myfit.core.formatMacro
 import com.maxshpl.myfit.products.Product
 import com.maxshpl.myfit.products.ProductPicker
 import com.maxshpl.myfit.products.formatProductMacros

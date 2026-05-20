@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.R
+import com.maxshpl.myfit.core.formatMacro
 
 private sealed interface PendingAction {
     val product: Product
@@ -444,11 +445,8 @@ private fun ConfirmActionDialog(
 }
 
 private fun formatMacros(product: Product): String {
-    val protein = formatGrams(product.proteinPer100g)
-    val fat = formatGrams(product.fatPer100g)
-    val carbs = formatGrams(product.carbsPer100g)
+    val protein = formatMacro(product.proteinPer100g.toDouble())
+    val fat = formatMacro(product.fatPer100g.toDouble())
+    val carbs = formatMacro(product.carbsPer100g.toDouble())
     return "${product.kcalPer100g} ккал · Б $protein · Ж $fat · У $carbs (на 100 г)"
 }
-
-private fun formatGrams(value: Float): String =
-    if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)

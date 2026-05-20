@@ -28,6 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.maxshpl.myfit.core.formatGrams
+import com.maxshpl.myfit.core.formatKcal
+import com.maxshpl.myfit.core.formatMacro
 
 @Composable
 fun FoodSection(
@@ -158,7 +161,7 @@ private fun DiaryRowItem(row: DiaryRow, onClick: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${formatGrams(row.grams)} г",
+                text = formatGrams(row.grams),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

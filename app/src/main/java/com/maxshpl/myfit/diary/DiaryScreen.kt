@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.maxshpl.myfit.core.formatGrams
+import com.maxshpl.myfit.core.formatKcal
+import com.maxshpl.myfit.core.formatMacro
+import com.maxshpl.myfit.core.formatMinutes
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -57,9 +62,13 @@ fun DiaryScreen(
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var pendingDeleteRow by remember { mutableStateOf<DiaryRow?>(null) }
-    var pendingDeleteLog by remember { mutableStateOf<ActivityLogRow?>(null) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    // ID-based pendingDelete: храним только entry/log id, объект ищем в state.
+    // rememberSaveable переживает rotation и process death (Long имеет встроенный Saver).
+    // Если запись удалена параллельно (другим источником), find вернёт null →
+    // диалог автоматически закрывается, что корректнее текущего поведения.
+    var pendingDeleteRowId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingDeleteLogId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
     val today = remember { LocalDate.now() }
     val isToday = state.date == today
@@ -112,7 +121,7 @@ fun DiaryScreen(
                     rows = state.rows,
                     onAddClick = { onAddProductClick(state.date) },
                     onRowClick = { row -> onEditEntryClick(row.entryId) },
-                    onSwipeRow = { row -> pendingDeleteRow = row },
+                    onSwipeRow = { row -> pendingDeleteRowId = row.entryId },
                 )
             }
             item("activities") {
@@ -120,7 +129,7 @@ fun DiaryScreen(
                     logs = state.activityLogs,
                     onAddClick = { onAddActivityClick(state.date) },
                     onRowClick = { log -> onEditActivityLogClick(log.logId) },
-                    onSwipeLog = { log -> pendingDeleteLog = log },
+                    onSwipeLog = { log -> pendingDeleteLogId = log.logId },
                 )
             }
         }
@@ -137,50 +146,60 @@ fun DiaryScreen(
         )
     }
 
-    pendingDeleteRow?.let { row ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteRow = null },
-            title = { Text("Удалить запись?") },
-            text = {
-                Text(
-                    "«${row.productName}» — ${formatGrams(row.grams)} г, " +
-                        "${formatKcal(row.kcal)} ккал. Будет удалена без " +
-                        "возможности восстановления.",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.delete(row.entryId)
-                    pendingDeleteRow = null
-                }) { Text("Удалить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteRow = null }) { Text("Отмена") }
-            },
-        )
+    pendingDeleteRowId?.let { id ->
+        val row = state.rows.find { it.entryId == id }
+        if (row == null) {
+            pendingDeleteRowId = null
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteRowId = null },
+                title = { Text("Удалить запись?") },
+                text = {
+                    Text(
+                        "«${row.productName}» — ${formatGrams(row.grams)}, " +
+                            "${formatKcal(row.kcal)} ккал. Будет удалена без " +
+                            "возможности восстановления.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.delete(row.entryId)
+                        pendingDeleteRowId = null
+                    }) { Text("Удалить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteRowId = null }) { Text("Отмена") }
+                },
+            )
+        }
     }
 
-    pendingDeleteLog?.let { log ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteLog = null },
-            title = { Text("Удалить активность?") },
-            text = {
-                Text(
-                    "«${log.activityName}» — ${formatGrams(log.durationMinutes)} мин, " +
-                        "${formatKcal(log.kcalBurned)} ккал. Будет удалена без " +
-                        "возможности восстановления.",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteActivityLog(log.logId)
-                    pendingDeleteLog = null
-                }) { Text("Удалить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteLog = null }) { Text("Отмена") }
-            },
-        )
+    pendingDeleteLogId?.let { id ->
+        val log = state.activityLogs.find { it.logId == id }
+        if (log == null) {
+            pendingDeleteLogId = null
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteLogId = null },
+                title = { Text("Удалить активность?") },
+                text = {
+                    Text(
+                        "«${log.activityName}» — ${formatMinutes(log.durationMinutes)}, " +
+                            "${formatKcal(log.kcalBurned)} ккал. Будет удалена без " +
+                            "возможности восстановления.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteActivityLog(log.logId)
+                        pendingDeleteLogId = null
+                    }) { Text("Удалить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteLogId = null }) { Text("Отмена") }
+                },
+            )
+        }
     }
 }
 

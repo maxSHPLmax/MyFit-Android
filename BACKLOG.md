@@ -106,7 +106,7 @@
 
 ## Технический долг (приоритет ниже фич)
 
-### B-tech-1: UI Polish + минорные правки
+### B-tech-1: UI Polish + минорные правки [~]
 
 **Что:** объединить format-функции в один util (5 копий → 1), `rememberSaveable` для всех `pendingDelete` диалогов (4 места), orphan-комментарий в Migrations.kt, семантический mismatch `formatGrams` для минут.
 

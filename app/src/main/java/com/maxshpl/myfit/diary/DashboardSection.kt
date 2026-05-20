@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.maxshpl.myfit.core.formatKcal
+import com.maxshpl.myfit.core.formatMacro
 import com.maxshpl.myfit.settings.DailyTargets
 
 @Composable
