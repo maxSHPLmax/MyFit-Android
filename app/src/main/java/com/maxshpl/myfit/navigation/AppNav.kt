@@ -257,7 +257,9 @@ fun AppNav() {
                 AddEditActivityScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen()
+                SettingsScreen(
+                    onManageActivitiesClick = { navController.navigate(Routes.ACTIVITIES) },
+                )
             }
         }
     }
