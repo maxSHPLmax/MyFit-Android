@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.maxshpl.myfit.reminders.RemindersConfig
+import com.maxshpl.myfit.reminders.RemindersRepository
+import com.maxshpl.myfit.reminders.ReminderScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -41,12 +44,20 @@ data class TargetsFormState(
 class SettingsViewModel(
     private val themeRepository: ThemePreferencesRepository,
     private val targetsRepository: TargetsRepository,
+    private val remindersRepository: RemindersRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = themeRepository.themeMode.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
         initialValue = ThemeMode.SYSTEM,
+    )
+
+    val remindersConfig: StateFlow<RemindersConfig> = remindersRepository.currentConfig.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+        initialValue = RemindersConfig.Default,
     )
 
     private val _targetsForm = MutableStateFlow(TargetsFormState())
@@ -69,6 +80,23 @@ class SettingsViewModel(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { themeRepository.setThemeMode(mode) }
+    }
+
+    /**
+     * Главный toggle напоминаний. При enabled=true scheduler ставит все
+     * enabled-слоты; при false — отменяет все. Permission flow (POST_NOTIFICATIONS
+     * на Android 13+) живёт в UI — VM просто следует команде.
+     */
+    fun setRemindersMainEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            remindersRepository.setMainEnabled(enabled)
+            val config = remindersRepository.currentConfig.first()
+            if (enabled) {
+                reminderScheduler.scheduleAll(config)
+            } else {
+                reminderScheduler.cancelAll()
+            }
+        }
     }
 
     fun setKcal(value: String) = updateField { it.copy(kcalText = value, kcalError = null) }
@@ -118,6 +146,8 @@ class SettingsViewModel(
                 SettingsViewModel(
                     themeRepository = ThemePreferencesRepository(app.settingsDataStore),
                     targetsRepository = TargetsRepository(app.settingsDataStore),
+                    remindersRepository = RemindersRepository(app.settingsDataStore),
+                    reminderScheduler = ReminderScheduler(app),
                 )
             }
         }

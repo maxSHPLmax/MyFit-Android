@@ -1,5 +1,10 @@
 package com.maxshpl.myfit.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,6 +30,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -32,18 +40,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.BuildConfig
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,9 +65,51 @@ fun SettingsScreen(
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val targetsForm by viewModel.targetsForm.collectAsStateWithLifecycle()
+    val remindersConfig by viewModel.remindersConfig.collectAsStateWithLifecycle()
     var showAbout by remember { mutableStateOf(false) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Настройки") }) }) { padding ->
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            viewModel.setRemindersMainEnabled(true)
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "Разрешите уведомления в настройках приложения",
+                )
+            }
+        }
+    }
+
+    val onToggleRemindersMain: (Boolean) -> Unit = onToggle@{ target ->
+        if (!target) {
+            viewModel.setRemindersMainEnabled(false)
+            return@onToggle
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                viewModel.setRemindersMainEnabled(true)
+            } else {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            // < Android 13: notifications не требуют runtime permission.
+            viewModel.setRemindersMainEnabled(true)
+        }
+    }
+
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Настройки") }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -67,6 +121,12 @@ fun SettingsScreen(
                 ThemeSection(
                     selected = themeMode,
                     onSelect = viewModel::setThemeMode,
+                )
+            }
+            item("reminders") {
+                RemindersSection(
+                    mainEnabled = remindersConfig.enabled,
+                    onToggleMain = onToggleRemindersMain,
                 )
             }
             item("targets") {
@@ -90,6 +150,40 @@ fun SettingsScreen(
 
     if (showAbout) {
         AboutDialog(onDismiss = { showAbout = false })
+    }
+}
+
+@Composable
+private fun RemindersSection(
+    mainEnabled: Boolean,
+    onToggleMain: (Boolean) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Напоминания",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Завтрак, обед, ужин, перекус в заданное время",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Switch(
+                    checked = mainEnabled,
+                    onCheckedChange = onToggleMain,
+                )
+            }
+            // Слоты (4 строки с временем + индивидуальные Switch) добавляются в коммите 6.
+        }
     }
 }
 
