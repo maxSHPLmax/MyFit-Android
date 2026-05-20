@@ -7,7 +7,6 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -37,6 +36,7 @@ import com.maxshpl.myfit.plan.AddEditMealScreen
 import com.maxshpl.myfit.plan.PlanScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
 import com.maxshpl.myfit.products.ProductsScreen
+import com.maxshpl.myfit.settings.SettingsScreen
 
 object Routes {
     const val DIARY = "diary"
@@ -257,19 +257,7 @@ fun AppNav() {
                 AddEditActivityScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
-                PlaceholderScreen(
-                    title = "Настройки",
-                    extraContent = {
-                        // KAN-16: временная debug-кнопка. УДАЛИТЬ при реализации KAN-9
-                        // (полноценный экран настроек заменит этот placeholder и должен
-                        // содержать пункт "Управление активностями" в основном меню).
-                        FilledTonalButton(
-                            onClick = { navController.navigate(Routes.ACTIVITIES) },
-                        ) {
-                            Text("Управление активностями (dev)")
-                        }
-                    },
-                )
+                SettingsScreen()
             }
         }
     }
