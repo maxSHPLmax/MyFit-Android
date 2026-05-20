@@ -23,13 +23,19 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val mealKindName = intent.getStringExtra(EXTRA_MEAL_KIND) ?: return
         val mealKind = runCatching { MealKind.valueOf(mealKindName) }.getOrNull() ?: return
+        val hour = intent.getIntExtra(EXTRA_HOUR, -1)
+        val minute = intent.getIntExtra(EXTRA_MINUTE, -1)
+        val isTest = intent.getBooleanExtra(EXTRA_IS_TEST, false)
 
         ensureMealRemindersChannel(context)
         showNotification(context, mealKind)
 
-        // TODO commit 3: после появления ReminderScheduler — здесь self-perpetuate:
-        // вызвать scheduler.scheduleSlot(kind, hour, minute) для алярма на +24 часа.
-        // Hour/minute прокидываем через extras или читаем из RemindersRepository.
+        // Self-perpetuating chain: реальные слоты перерасписываются на +24h
+        // через тот же scheduleSlot — nextTriggerMillis вернёт завтрашний момент.
+        // Тестовые алярмы (debug-кнопка в коммите 7) — one-shot, без перерасписания.
+        if (!isTest && hour in 0..23 && minute in 0..59) {
+            ReminderScheduler(context).scheduleSlot(mealKind, hour, minute)
+        }
     }
 
     private fun showNotification(context: Context, kind: MealKind) {
@@ -62,6 +68,8 @@ class ReminderReceiver : BroadcastReceiver() {
 
     companion object {
         const val EXTRA_MEAL_KIND = "meal_kind"
+        const val EXTRA_HOUR = "hour"
+        const val EXTRA_MINUTE = "minute"
         const val EXTRA_IS_TEST = "is_test"
         const val EXTRA_OPEN_DIARY_TODAY = "open_diary_today"
     }
