@@ -14,6 +14,8 @@ import com.maxshpl.myfit.diary.ActivityLog
 import com.maxshpl.myfit.diary.ActivityLogDao
 import com.maxshpl.myfit.diary.DiaryEntry
 import com.maxshpl.myfit.diary.DiaryEntryDao
+import com.maxshpl.myfit.plan.PlannedMeal
+import com.maxshpl.myfit.plan.PlannedMealItem
 import com.maxshpl.myfit.products.Product
 import com.maxshpl.myfit.products.ProductDao
 import com.maxshpl.myfit.products.ProductSeed
@@ -23,8 +25,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Product::class, DiaryEntry::class, Activity::class, ActivityLog::class],
-    version = 5,
+    entities = [
+        Product::class,
+        DiaryEntry::class,
+        Activity::class,
+        ActivityLog::class,
+        PlannedMeal::class,
+        PlannedMealItem::class,
+    ],
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -58,6 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_2_3,
                     MIGRATION_3_4,
                     MIGRATION_4_5,
+                    MIGRATION_5_6,
                 )
                 .build()
         }
