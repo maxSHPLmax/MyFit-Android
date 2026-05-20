@@ -37,6 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.maxshpl.myfit.core.formatGrams
+import com.maxshpl.myfit.core.formatKcal
+import com.maxshpl.myfit.core.formatMacro
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId

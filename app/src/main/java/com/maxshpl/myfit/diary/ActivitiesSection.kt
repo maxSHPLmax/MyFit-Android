@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.maxshpl.myfit.core.formatKcal
 
 @Composable
 fun ActivitiesSection(

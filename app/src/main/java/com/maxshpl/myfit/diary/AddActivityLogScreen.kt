@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.activities.Activity
+import com.maxshpl.myfit.core.formatKcal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
