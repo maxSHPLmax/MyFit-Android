@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.maxshpl.myfit.reminders.MealKind
 import com.maxshpl.myfit.reminders.RemindersConfig
 import com.maxshpl.myfit.reminders.RemindersRepository
 import com.maxshpl.myfit.reminders.ReminderScheduler
@@ -98,6 +99,34 @@ class SettingsViewModel(
             }
         }
     }
+
+    fun setRemindersSlotEnabled(kind: MealKind, enabled: Boolean) {
+        viewModelScope.launch {
+            remindersRepository.setSlotEnabled(kind, enabled)
+            rescheduleIfMainEnabled()
+        }
+    }
+
+    fun setRemindersSlotTime(kind: MealKind, hour: Int, minute: Int) {
+        viewModelScope.launch {
+            remindersRepository.setSlotTime(kind, hour, minute)
+            rescheduleIfMainEnabled()
+        }
+    }
+
+    private suspend fun rescheduleIfMainEnabled() {
+        val config = remindersRepository.currentConfig.first()
+        if (config.enabled) {
+            reminderScheduler.scheduleAll(config)
+        }
+    }
+
+    /**
+     * UI вызывает в LifecycleEventObserver.ON_RESUME — пользователь мог уйти
+     * в системные настройки exact alarms и вернуться. Compose не реагирует
+     * на изменение permission'а сам, поэтому проверяем на каждом resume.
+     */
+    fun canScheduleExact(): Boolean = reminderScheduler.canScheduleExact()
 
     fun setKcal(value: String) = updateField { it.copy(kcalText = value, kcalError = null) }
     fun setProtein(value: String) = updateField { it.copy(proteinText = value, proteinError = null) }

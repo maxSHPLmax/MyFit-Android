@@ -33,9 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,9 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.maxshpl.myfit.core.TimePickerDialog
 import com.maxshpl.myfit.core.formatKcal
 import com.maxshpl.myfit.core.formatMacro
 import com.maxshpl.myfit.products.ProductPicker
@@ -236,8 +234,9 @@ private fun MealForm(
     }
 
     if (showTimePicker) {
-        TimePickerDialogContent(
+        TimePickerDialog(
             initialTime = state.time,
+            title = "Время приёма",
             onDismiss = { showTimePicker = false },
             onConfirm = { picked ->
                 onTimeChange(picked)
@@ -294,38 +293,6 @@ private fun MealItemRow(item: MealItemDraft, onRemove: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimePickerDialogContent(
-    initialTime: String?,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    val (hour, minute) = parseHm(initialTime)
-    val state = rememberTimePickerState(initialHour = hour, initialMinute = minute, is24Hour = true)
-    Dialog(onDismissRequest = onDismiss) {
-        Card {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Время приёма",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
-                TimePicker(state = state)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onDismiss) { Text("Отмена") }
-                    TextButton(onClick = {
-                        onConfirm("%02d:%02d".format(state.hour, state.minute))
-                    }) { Text("Ок") }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun GramsForItem(
     productName: String,
@@ -376,10 +343,3 @@ private fun GramsForItem(
     }
 }
 
-private fun parseHm(time: String?): Pair<Int, Int> {
-    if (time == null) return 12 to 0
-    val parts = time.split(":")
-    val h = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 12
-    val m = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
-    return h to m
-}

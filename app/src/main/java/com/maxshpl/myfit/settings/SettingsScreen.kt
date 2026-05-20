@@ -1,8 +1,11 @@
 package com.maxshpl.myfit.settings
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -37,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,9 +56,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.BuildConfig
+import com.maxshpl.myfit.core.TimePickerDialog
+import com.maxshpl.myfit.reminders.MealKind
+import com.maxshpl.myfit.reminders.ReminderSlot
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,10 +77,27 @@ fun SettingsScreen(
     val targetsForm by viewModel.targetsForm.collectAsStateWithLifecycle()
     val remindersConfig by viewModel.remindersConfig.collectAsStateWithLifecycle()
     var showAbout by remember { mutableStateOf(false) }
+    var editingTimeFor by remember { mutableStateOf<MealKind?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // canScheduleExact — runtime permission, не Flow. Пересчитываем на каждом
+    // ON_RESUME: пользователь мог уйти в системные настройки exact alarms
+    // и вернуться → hint card должна обновиться.
+    var canScheduleExact by remember { mutableStateOf(viewModel.canScheduleExact()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                canScheduleExact = viewModel.canScheduleExact()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -125,8 +152,19 @@ fun SettingsScreen(
             }
             item("reminders") {
                 RemindersSection(
-                    mainEnabled = remindersConfig.enabled,
+                    config = remindersConfig,
+                    canScheduleExact = canScheduleExact,
                     onToggleMain = onToggleRemindersMain,
+                    onToggleSlot = viewModel::setRemindersSlotEnabled,
+                    onSlotTimeClick = { kind -> editingTimeFor = kind },
+                    onRequestExactAlarms = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            runCatching { context.startActivity(intent) }
+                        }
+                    },
                 )
             }
             item("targets") {
@@ -151,12 +189,32 @@ fun SettingsScreen(
     if (showAbout) {
         AboutDialog(onDismiss = { showAbout = false })
     }
+
+    editingTimeFor?.let { kind ->
+        val slot = remindersConfig.slotFor(kind)
+        TimePickerDialog(
+            initialTime = "%02d:%02d".format(slot.hour, slot.minute),
+            title = "Время напоминания: ${kind.settingsLabel}",
+            onDismiss = { editingTimeFor = null },
+            onConfirm = { picked ->
+                val parts = picked.split(":")
+                val h = parts.getOrNull(0)?.toIntOrNull() ?: slot.hour
+                val m = parts.getOrNull(1)?.toIntOrNull() ?: slot.minute
+                viewModel.setRemindersSlotTime(kind, h, m)
+                editingTimeFor = null
+            },
+        )
+    }
 }
 
 @Composable
 private fun RemindersSection(
-    mainEnabled: Boolean,
+    config: com.maxshpl.myfit.reminders.RemindersConfig,
+    canScheduleExact: Boolean,
     onToggleMain: (Boolean) -> Unit,
+    onToggleSlot: (MealKind, Boolean) -> Unit,
+    onSlotTimeClick: (MealKind) -> Unit,
+    onRequestExactAlarms: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -178,11 +236,95 @@ private fun RemindersSection(
                     )
                 }
                 Switch(
-                    checked = mainEnabled,
+                    checked = config.enabled,
                     onCheckedChange = onToggleMain,
                 )
             }
-            // Слоты (4 строки с временем + индивидуальные Switch) добавляются в коммите 6.
+            if (config.enabled) {
+                if (!canScheduleExact) {
+                    ExactAlarmHint(
+                        onRequest = onRequestExactAlarms,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                MealKind.entries.forEachIndexed { idx, kind ->
+                    SlotRow(
+                        kind = kind,
+                        slot = config.slotFor(kind),
+                        onToggle = { enabled -> onToggleSlot(kind, enabled) },
+                        onTimeClick = { onSlotTimeClick(kind) },
+                    )
+                    if (idx < MealKind.entries.lastIndex) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlotRow(
+    kind: MealKind,
+    slot: ReminderSlot,
+    onToggle: (Boolean) -> Unit,
+    onTimeClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = kind.settingsLabel,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "%02d:%02d".format(slot.hour, slot.minute),
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (slot.enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier
+                .clickable(enabled = slot.enabled, onClick = onTimeClick)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Switch(checked = slot.enabled, onCheckedChange = onToggle)
+    }
+}
+
+@Composable
+private fun ExactAlarmHint(
+    onRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Уведомления могут опаздывать до 15 минут",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Разрешите точные будильники, чтобы напоминания приходили вовремя.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            TextButton(
+                onClick = onRequest,
+                modifier = Modifier.padding(top = 4.dp),
+            ) { Text("Открыть настройки") }
         }
     }
 }
