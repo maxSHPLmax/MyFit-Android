@@ -30,6 +30,7 @@ import com.maxshpl.myfit.activities.AddEditActivityScreen
 import com.maxshpl.myfit.diary.AddActivityLogScreen
 import com.maxshpl.myfit.diary.AddDiaryEntryScreen
 import com.maxshpl.myfit.diary.DiaryScreen
+import com.maxshpl.myfit.plan.PlanScreen
 import com.maxshpl.myfit.products.AddEditProductScreen
 import com.maxshpl.myfit.products.ProductsScreen
 
@@ -161,7 +162,10 @@ fun AppNav() {
                 )
             }
             composable(Routes.PLAN) {
-                PlaceholderScreen(title = "План")
+                PlanScreen(
+                    onAddMealClick = { /* TODO commit 4: navigate to add-meal */ },
+                    onEditMealClick = { /* TODO commit 4: navigate to edit-meal */ },
+                )
             }
             composable(Routes.HISTORY) {
                 PlaceholderScreen(title = "История")
