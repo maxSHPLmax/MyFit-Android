@@ -127,6 +127,15 @@ fun AppNav() {
                     onEditActivityLogClick = { id ->
                         navController.navigate(Routes.diaryEditActivity(id))
                     },
+                    onOpenPlanClick = {
+                        navController.navigate(Routes.PLAN) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(

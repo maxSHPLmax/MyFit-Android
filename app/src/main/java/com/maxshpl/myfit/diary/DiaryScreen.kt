@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DatePicker
@@ -52,6 +53,7 @@ fun DiaryScreen(
     onAddActivityClick: (LocalDate) -> Unit,
     onEditEntryClick: (Long) -> Unit,
     onEditActivityLogClick: (Long) -> Unit,
+    onOpenPlanClick: () -> Unit,
     viewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,7 +99,14 @@ fun DiaryScreen(
                     burnedKcal = state.burnedKcal,
                 )
             }
-            item("plan") { PlanSection() }
+            item("plan") {
+                PlanSection(
+                    plannedMeals = state.plannedMeals,
+                    onApplyMeal = viewModel::applyPlannedMeal,
+                    onUnapplyMeal = viewModel::unapplyPlannedMeal,
+                    onOpenPlanClick = onOpenPlanClick,
+                )
+            }
             item("food") {
                 FoodSection(
                     rows = state.rows,
@@ -255,7 +264,12 @@ private fun DiaryDatePickerDialog(
 }
 
 @Composable
-private fun PlanSection() {
+private fun PlanSection(
+    plannedMeals: List<PlannedMealOnDiary>,
+    onApplyMeal: (Long) -> Unit,
+    onUnapplyMeal: (Long) -> Unit,
+    onOpenPlanClick: () -> Unit,
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -267,12 +281,82 @@ private fun PlanSection() {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = "Плана на сегодня нет",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
+            if (plannedMeals.isEmpty()) {
+                Text(
+                    text = "Плана на сегодня нет",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                TextButton(
+                    onClick = onOpenPlanClick,
+                    modifier = Modifier.padding(top = 4.dp),
+                ) { Text("Открыть план") }
+            } else {
+                Column(
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    plannedMeals.forEach { meal ->
+                        PlannedMealRowOnDiary(
+                            meal = meal,
+                            onApply = { onApplyMeal(meal.id) },
+                            onUnapply = { onUnapplyMeal(meal.id) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlannedMealRowOnDiary(
+    meal: PlannedMealOnDiary,
+    onApply: () -> Unit,
+    onUnapply: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (meal.isApplied) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Съедено",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = 8.dp),
             )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = meal.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!meal.time.isNullOrBlank()) {
+                    Text(
+                        text = meal.time,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                text = "${formatKcal(meal.kcal)} ккал · " +
+                    "Б ${formatMacro(meal.protein)} · " +
+                    "Ж ${formatMacro(meal.fat)} · " +
+                    "У ${formatMacro(meal.carbs)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(
+            onClick = if (meal.isApplied) onUnapply else onApply,
+        ) {
+            Text(if (meal.isApplied) "Убрать" else "Съел")
         }
     }
 }
