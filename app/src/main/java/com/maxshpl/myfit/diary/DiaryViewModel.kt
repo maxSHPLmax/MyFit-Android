@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -116,19 +117,32 @@ class DiaryViewModel(
     )
 
     init {
-        // Подписываемся на DataStore — DiaryDateRepository как единый источник истины.
-        // Это позволяет внешним экранам (например, History) переключать дату через
-        // setLastViewedDate, и Diary VM реагирует автоматически.
+        // Cold start: применяем 3-day stale fallback однократно — после долгого
+        // перерыва открываем сегодня, а не "позавчера". Дальше repository — чистый
+        // источник истины: явные click-through из других экранов уважаются.
         //
-        // Защита от race: если значение из DataStore совпадает с текущим — не
-        // перезаписываем. Иначе при setDate(X) перед завершением записи в DataStore
-        // collect мог бы прислать старое значение и откатить UI.
+        // Если fallback сработал, синхронизируем DataStore: setLastViewedDate await'ится
+        // до collect, и первый emit от .currentDate будет уже resolved-значением →
+        // защита `!= _selectedDate.value` спокойно даст no-op. Без sync write был бы
+        // цикл: collect получает stale → fallback в repository → today → но в store
+        // всё ещё stale → emit stale → ... (бесконечный пинг-понг).
         //
-        // Edge case первого запуска: DataStore пуст → repository.lastViewedDate
-        // возвращает LocalDate.now() сразу через .map{} (см. DiaryDateRepository).
-        // Никакого ожидания, никакого спиннера — initial value uiState уже today.
+        // Защита от race на последующих emit'ах: пишем _selectedDate только если
+        // значение из DataStore отличается от текущего. Иначе параллельный setDate(X)
+        // + collect могли бы откатить UI.
         viewModelScope.launch {
-            dateRepository.lastViewedDate.collect { fromStore ->
+            val raw = dateRepository.currentDate.first()
+            val today = LocalDate.now()
+            val resolved = if (raw.isBefore(today.minusDays(STALE_THRESHOLD_DAYS))) {
+                today
+            } else {
+                raw
+            }
+            _selectedDate.value = resolved
+            if (resolved != raw) {
+                dateRepository.setLastViewedDate(resolved)
+            }
+            dateRepository.currentDate.collect { fromStore ->
                 if (fromStore != _selectedDate.value) {
                     _selectedDate.value = fromStore
                 }
@@ -169,6 +183,10 @@ class DiaryViewModel(
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
+
+        // После N дней простоя cold start открывает сегодня, не последнюю дату.
+        // Применяется только в init, не в repository. См. init блок.
+        private const val STALE_THRESHOLD_DAYS = 3L
 
         val Factory = viewModelFactory {
             initializer {

@@ -9,13 +9,23 @@ import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
+/**
+ * Чистый read/write для последней просмотренной даты Diary. Без бизнес-логики.
+ *
+ * Раньше здесь применялся 3-day fallback при чтении: если сохранённая дата
+ * старше 3 дней, возвращался today. Это удобно при cold start (открыл app
+ * после долгого перерыва — открывается сегодня), но ломало click-through
+ * из History: явный переход на день 15 дней назад превращался в today,
+ * потому что fallback применялся к каждому emit, не только при init.
+ *
+ * Теперь репозиторий тупой: возвращает то, что в DataStore, или today если
+ * ключа нет. Логику stale-fallback применяет только DiaryViewModel.init —
+ * однократно при cold start, см. там.
+ */
 class DiaryDateRepository(private val dataStore: DataStore<Preferences>) {
 
-    val lastViewedDate: Flow<LocalDate> = dataStore.data.map { prefs ->
-        val raw = prefs[Keys.LAST_VIEWED_DATE]
-        val today = LocalDate.now()
-        val stored = raw?.let(::parseOrNull) ?: return@map today
-        if (stored.isBefore(today.minusDays(STALE_THRESHOLD_DAYS))) today else stored
+    val currentDate: Flow<LocalDate> = dataStore.data.map { prefs ->
+        prefs[Keys.LAST_VIEWED_DATE]?.let(::parseOrNull) ?: LocalDate.now()
     }
 
     suspend fun setLastViewedDate(date: LocalDate) {
@@ -30,10 +40,5 @@ class DiaryDateRepository(private val dataStore: DataStore<Preferences>) {
 
     private object Keys {
         val LAST_VIEWED_DATE = stringPreferencesKey("diary_last_viewed_date")
-    }
-
-    private companion object {
-        // Если последняя сохранённая дата старше 3 дней — открываем сегодня.
-        const val STALE_THRESHOLD_DAYS = 3L
     }
 }
