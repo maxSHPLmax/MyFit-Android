@@ -1,0 +1,409 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 6,
+    "identityHash": "d1a7088dce1f8ad43a616aca4cfb3f9c",
+    "entities": [
+      {
+        "tableName": "products",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `kcal_per_100g` INTEGER NOT NULL, `protein_per_100g` REAL NOT NULL, `fat_per_100g` REAL NOT NULL, `carbs_per_100g` REAL NOT NULL, `is_custom` INTEGER NOT NULL, `is_hidden` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kcalPer100g",
+            "columnName": "kcal_per_100g",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "proteinPer100g",
+            "columnName": "protein_per_100g",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fatPer100g",
+            "columnName": "fat_per_100g",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "carbsPer100g",
+            "columnName": "carbs_per_100g",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCustom",
+            "columnName": "is_custom",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isHidden",
+            "columnName": "is_hidden",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "diary_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `meal_type` TEXT, `product_id` INTEGER NOT NULL, `grams` REAL NOT NULL, `from_meal_id` INTEGER, FOREIGN KEY(`product_id`) REFERENCES `products`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`from_meal_id`) REFERENCES `planned_meals`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mealType",
+            "columnName": "meal_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "productId",
+            "columnName": "product_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "grams",
+            "columnName": "grams",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fromMealId",
+            "columnName": "from_meal_id",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_diary_entries_product_id",
+            "unique": false,
+            "columnNames": [
+              "product_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diary_entries_product_id` ON `${TABLE_NAME}` (`product_id`)"
+          },
+          {
+            "name": "index_diary_entries_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diary_entries_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_diary_entries_from_meal_id",
+            "unique": false,
+            "columnNames": [
+              "from_meal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diary_entries_from_meal_id` ON `${TABLE_NAME}` (`from_meal_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "products",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "product_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "planned_meals",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "from_meal_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "activities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `kcal_per_min` REAL NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kcalPerMin",
+            "columnName": "kcal_per_min",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_activities_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_activities_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "activity_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `activity_id` INTEGER NOT NULL, `duration_minutes` REAL NOT NULL, FOREIGN KEY(`activity_id`) REFERENCES `activities`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityId",
+            "columnName": "activity_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMinutes",
+            "columnName": "duration_minutes",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_activity_log_activity_id",
+            "unique": false,
+            "columnNames": [
+              "activity_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activity_log_activity_id` ON `${TABLE_NAME}` (`activity_id`)"
+          },
+          {
+            "name": "index_activity_log_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activity_log_date` ON `${TABLE_NAME}` (`date`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "activities",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "activity_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "planned_meals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `day_of_week` TEXT NOT NULL, `name` TEXT NOT NULL, `time` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayOfWeek",
+            "columnName": "day_of_week",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "time",
+            "columnName": "time",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_planned_meals_day_of_week",
+            "unique": false,
+            "columnNames": [
+              "day_of_week"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_planned_meals_day_of_week` ON `${TABLE_NAME}` (`day_of_week`)"
+          }
+        ]
+      },
+      {
+        "tableName": "planned_meal_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `meal_id` INTEGER NOT NULL, `product_id` INTEGER NOT NULL, `grams` REAL NOT NULL, FOREIGN KEY(`meal_id`) REFERENCES `planned_meals`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`product_id`) REFERENCES `products`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mealId",
+            "columnName": "meal_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productId",
+            "columnName": "product_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "grams",
+            "columnName": "grams",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_planned_meal_items_meal_id",
+            "unique": false,
+            "columnNames": [
+              "meal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_planned_meal_items_meal_id` ON `${TABLE_NAME}` (`meal_id`)"
+          },
+          {
+            "name": "index_planned_meal_items_product_id",
+            "unique": false,
+            "columnNames": [
+              "product_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_planned_meal_items_product_id` ON `${TABLE_NAME}` (`product_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "planned_meals",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "meal_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "products",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "product_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd1a7088dce1f8ad43a616aca4cfb3f9c')"
+    ]
+  }
+}

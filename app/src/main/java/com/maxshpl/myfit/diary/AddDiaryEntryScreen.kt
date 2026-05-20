@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.products.Product
+import com.maxshpl.myfit.products.ProductPicker
+import com.maxshpl.myfit.products.formatProductMacros
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,80 +96,6 @@ fun AddDiaryEntryScreen(
                     onSave = viewModel::save,
                 )
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProductPicker(
-    query: String,
-    products: List<Product>,
-    onQueryChange: (String) -> Unit,
-    onProductClick: (Product) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            placeholder = { Text("Поиск по имени") },
-            singleLine = true,
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChange("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Очистить")
-                    }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-        if (products.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (query.isBlank()) "Список пуст" else "Ничего не найдено",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(products, key = { it.id }) { product ->
-                    ProductPickerRow(product = product, onClick = { onProductClick(product) })
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProductPickerRow(product: Product, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = product.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = formatProductMacros(product),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -267,12 +195,3 @@ private fun computePreview(product: Product, gramsText: String): MacroPreview? {
     )
 }
 
-private fun formatProductMacros(product: Product): String {
-    val p = formatFloat(product.proteinPer100g)
-    val f = formatFloat(product.fatPer100g)
-    val c = formatFloat(product.carbsPer100g)
-    return "${product.kcalPer100g} ккал · Б $p · Ж $f · У $c (на 100 г)"
-}
-
-private fun formatFloat(value: Float): String =
-    if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)

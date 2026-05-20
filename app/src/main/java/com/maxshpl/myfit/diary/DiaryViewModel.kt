@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.plan.PlanRepository
 import com.maxshpl.myfit.settings.DailyTargets
 import com.maxshpl.myfit.settings.TargetsRepository
 import com.maxshpl.myfit.settings.settingsDataStore
@@ -20,6 +21,17 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+data class PlannedMealOnDiary(
+    val id: Long,
+    val name: String,
+    val time: String?,
+    val kcal: Double,
+    val protein: Double,
+    val fat: Double,
+    val carbs: Double,
+    val isApplied: Boolean,
+)
+
 data class DiaryUiState(
     val date: LocalDate,
     val rows: List<DiaryRow>,
@@ -27,6 +39,7 @@ data class DiaryUiState(
     val targets: DailyTargets,
     val activityLogs: List<ActivityLogRow>,
     val burnedKcal: Double,
+    val plannedMeals: List<PlannedMealOnDiary>,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -35,6 +48,7 @@ class DiaryViewModel(
     private val targetsRepository: TargetsRepository,
     private val activityLogRepository: ActivityLogRepository,
     private val dateRepository: DiaryDateRepository,
+    private val planRepository: PlanRepository,
 ) : ViewModel() {
 
     private val initialDate: LocalDate = LocalDate.now()
@@ -47,6 +61,28 @@ class DiaryViewModel(
     private val activityLogsFlow = _selectedDate.flatMapLatest { activityLogRepository.rowsForDate(it) }
     private val burnedFlow = _selectedDate.flatMapLatest { activityLogRepository.sumKcalForDate(it) }
 
+    // План + статус "съел" — один источник даты для обоих внутренних потоков,
+    // чтобы при переключении даты meals и appliedIds не разъезжались.
+    private val plannedMealsFlow = _selectedDate.flatMapLatest { date ->
+        combine(
+            planRepository.observeMealsForDay(date.dayOfWeek),
+            planRepository.observeAppliedMealIds(date),
+        ) { meals, appliedIds ->
+            meals.map { m ->
+                PlannedMealOnDiary(
+                    id = m.id,
+                    name = m.name,
+                    time = m.time,
+                    kcal = m.kcal,
+                    protein = m.protein,
+                    fat = m.fat,
+                    carbs = m.carbs,
+                    isApplied = m.id in appliedIds,
+                )
+            }
+        }
+    }
+
     val uiState: StateFlow<DiaryUiState> = combine(
         _selectedDate,
         rowsFlow,
@@ -54,6 +90,7 @@ class DiaryViewModel(
         targetsRepository.targets,
         activityLogsFlow,
         burnedFlow,
+        plannedMealsFlow,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         DiaryUiState(
@@ -63,6 +100,7 @@ class DiaryViewModel(
             targets = values[3] as DailyTargets,
             activityLogs = values[4] as List<ActivityLogRow>,
             burnedKcal = values[5] as Double,
+            plannedMeals = values[6] as List<PlannedMealOnDiary>,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -74,6 +112,7 @@ class DiaryViewModel(
             targets = DailyTargets.Default,
             activityLogs = emptyList(),
             burnedKcal = 0.0,
+            plannedMeals = emptyList(),
         ),
     )
 
@@ -102,6 +141,18 @@ class DiaryViewModel(
         viewModelScope.launch { activityLogRepository.deleteById(logId) }
     }
 
+    fun applyPlannedMeal(mealId: Long) {
+        viewModelScope.launch {
+            planRepository.applyMealToDate(mealId, _selectedDate.value)
+        }
+    }
+
+    fun unapplyPlannedMeal(mealId: Long) {
+        viewModelScope.launch {
+            planRepository.unapplyMealFromDate(mealId, _selectedDate.value)
+        }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
@@ -115,6 +166,10 @@ class DiaryViewModel(
                     targetsRepository = TargetsRepository(application.settingsDataStore),
                     activityLogRepository = ActivityLogRepository(db.activityLogDao()),
                     dateRepository = DiaryDateRepository(application.settingsDataStore),
+                    planRepository = PlanRepository(
+                        planDao = db.planDao(),
+                        diaryEntryDao = db.diaryEntryDao(),
+                    ),
                 )
             }
         }
