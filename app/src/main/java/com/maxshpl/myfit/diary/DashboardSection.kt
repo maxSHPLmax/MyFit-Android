@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,8 +17,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.maxshpl.myfit.core.formatKcal
 import com.maxshpl.myfit.core.formatMacro
+import com.maxshpl.myfit.core.formatSignedKcal
 import com.maxshpl.myfit.settings.DailyTargets
 
+/**
+ * Иерархия по макету B-5b:
+ * - Цель (label small)
+ * - БАЛАНС со знаком (display large) — главный фокус. Формула Eaten - Burned:
+ *   "+" = перебор еды над сожжённым, "-" = дефицит. Нейтральный цвет
+ *   (без emotional кодировки error/primary) — Lead не хочет окрашивать
+ *   "плохо/хорошо", пусть юзер сам интерпретирует.
+ * - Съедено / Сожжено (title medium) — текущее vs цель и факт.
+ * - БЖУ (body/label small) — детализация макро.
+ *
+ * Все три иерархии в одной Card. LinearProgressIndicator'ы убраны (не на макете).
+ */
 @Composable
 fun DashboardSection(
     totals: DayTotals,
@@ -30,12 +42,6 @@ fun DashboardSection(
 ) {
     val totalBurnedKcal = manualBurnedKcal + (hcBurnedKcal ?: 0.0)
     val balance = totals.kcal - totalBurnedKcal
-    val isOverTarget = balance > targets.kcal
-    val errorColor = MaterialTheme.colorScheme.error
-    val balanceColor = if (isOverTarget) errorColor else MaterialTheme.colorScheme.onSurface
-    val barColor = if (isOverTarget) errorColor else MaterialTheme.colorScheme.primary
-    val balanceBarProgress = (balance.toFloat() / targets.kcal.coerceAtLeast(1).toFloat())
-        .coerceIn(0f, 1f)
 
     Card(
         modifier = modifier
@@ -44,41 +50,33 @@ fun DashboardSection(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "Цель: ${targets.kcal} ккал/день",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
+            // --- Балансовый блок ---
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = formatKcal(balance),
-                    style = MaterialTheme.typography.displaySmall,
+                    text = "Цель: ${targets.kcal} ккал/день",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = formatSignedKcal(balance),
+                    style = MaterialTheme.typography.displayLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = balanceColor,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = "Баланс, ккал",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
-            LinearProgressIndicator(
-                progress = { balanceBarProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                color = barColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                drawStopIndicator = {},
-            )
-
+            // --- Съедено / Сожжено ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -95,6 +93,7 @@ fun DashboardSection(
                 )
             }
 
+            // --- БЖУ ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -124,46 +123,25 @@ fun DashboardSection(
 
 @Composable
 private fun EatenTile(eaten: Double, target: Int, modifier: Modifier = Modifier) {
-    val progress = (eaten.toFloat() / target.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-    Card(modifier = modifier) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                "Съедено",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "${formatKcal(eaten)} / $target ккал",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(6.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp),
-                drawStopIndicator = {},
-            )
-        }
+    Column(modifier = modifier) {
+        Text(
+            "Съедено",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "${formatKcal(eaten)} / $target ккал",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
 /**
- * Три режима отображения:
- * 1) hcBurnedKcal == null (HC выключен или нет permissions): показываем
- *    только ручное "Y ккал" — legacy формат до B-5a.
- * 2) hcBurnedKcal != null, manual == 0: "X ккал" большим + подпись "из Health Connect".
- * 3) hcBurnedKcal != null, manual > 0: "Z ккал" (=X+Y) большим + breakdown
- *    "X (часы) + Y (вручную)" мелким.
- *
- * Случай (hcBurnedKcal == 0.0, manual == 0) попадает в (2): показывается "0 ккал из HC".
- * Это намеренно — отличает "HC включён, но сегодня данных нет" от "HC выключен".
- *
- * HC даёт TotalCaloriesBurnedRecord (включая BMR), не Active — Samsung Health не пишет
- * Active в HC. Цифра получается крупная (часто 2000+ ккал). Минимальный hint "с БМР"
- * показывается под подписью. Полная UX-полировка — B-5b TODO.
+ * После B-5b упрощено до одной цифры — без breakdown "(часы)+(вручную)" и подписи
+ * "(с БМР)". Сумма manual+HC формируется внутри тайла; наружу разбивки не видно.
+ * Логика суммирования с HC данными остаётся (см. DiaryViewModel.hcBurnedFlow).
  */
 @Composable
 private fun BurnedTile(
@@ -172,41 +150,18 @@ private fun BurnedTile(
     modifier: Modifier = Modifier,
 ) {
     val totalKcal = manualBurnedKcal + (hcBurnedKcal ?: 0.0)
-    Card(modifier = modifier) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                "Сожжено",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "${formatKcal(totalKcal)} ккал",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(6.dp))
-            when {
-                hcBurnedKcal == null -> {
-                    Spacer(Modifier.height(4.dp))
-                }
-                manualBurnedKcal == 0.0 -> {
-                    Text(
-                        "из Health Connect (с БМР)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                else -> {
-                    Text(
-                        "${formatKcal(hcBurnedKcal)} (часы, с БМР) + " +
-                            "${formatKcal(manualBurnedKcal)} (вручную)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+    Column(modifier = modifier) {
+        Text(
+            "Сожжено",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "${formatKcal(totalKcal)} ккал",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -217,30 +172,19 @@ private fun NutrientChip(
     target: Int,
     modifier: Modifier = Modifier,
 ) {
-    val progress = (value.toFloat() / target.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-    Card(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "${formatMacro(value)} / $target г",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp),
-                drawStopIndicator = {},
-            )
-        }
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "${formatMacro(value)} / $target г",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
