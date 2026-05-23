@@ -22,6 +22,7 @@
 - [x] **B-3** Настройки — тема, цели КБЖУ, управление активностями, Об приложении (закрыт 2026-05-20)
 - [x] **B-tech-1** UI Polish — format util, semantic split, rememberSaveable, orphan cleanup (закрыт 2026-05-20)
 - [x] **B-4** Напоминания — AlarmManager + Notification + Settings UI (закрыт 2026-05-20)
+- [x] **B-5a** Health Connect — TotalCalories в Дневнике (SDK + permissions + Android 14+ activity-alias + dashboard breakdown) (закрыт 2026-05-23)
 
 **Этап 2 эпика "Rewrite на Kotlin/Compose" полностью закрыт.** Дневник функционален в MVP: учёт еды и активностей с реальным балансом калорий.
 
@@ -38,30 +39,34 @@
 **Оценка:** большая (декомпозирована на B-5a / B-5b)
 
 **Декомпозиция:**
-- **B-5a (в работе):** SDK + permissions + чтение **Total**CaloriesBurned + интеграция с дашбордом (тайл "Сожжено" с breakdown) + Android 14+ activity-alias `VIEW_PERMISSION_USAGE` (перенесён из B-5b как hotfix — без него HC framework отвергает permission intent на Android 14+)
-- **B-5b:** Steps в UI / Privacy Policy text + GitHub Pages / "Открыть настройки HC" / debug helper / **UX-полировка надписи "Сожжено"** с учётом что цифра — Total (включая базовый обмен), не только активность; возможно ввести явное визуальное разделение "BMR + активность" или сделать pill/tooltip с пояснением
+- `[x]` **B-5a** — SDK + permissions + чтение TotalCaloriesBurned + интеграция с дашбордом + Android 14+ activity-alias `VIEW_PERMISSION_USAGE` (закрыт 2026-05-23)
+- `[ ]` **B-5b** — Steps в UI / Privacy Policy text + GitHub Pages / "Открыть настройки HC" / debug helper / **UX-полировка надписи "Сожжено"** с учётом что цифра — Total (включая базовый обмен), не только активность; возможно ввести явное визуальное разделение "BMR + активность" или сделать pill/tooltip с пояснением
 
-**Важное архитектурное решение (smene plan'а B-5):** перешли с `ActiveCaloriesBurnedRecord` на `TotalCaloriesBurnedRecord`. Samsung Health в Health Connect пишет только Total (без выделения Active). Подтверждено на устройстве Lead'а (OnePlus + Galaxy Watch, 4 тренировки ходьбы → ActiveCalories=null, TotalCalories=полная цифра с BMR). Цифра "Сожжено" теперь содержит базовый метаболизм (~1700-2200 ккал/сутки на покое плюс активность). Психологически нужна UX-полировка — в B-5b.
+**Важное архитектурное решение (изменение плана B-5):** перешли с `ActiveCaloriesBurnedRecord` на `TotalCaloriesBurnedRecord`. Samsung Health в Health Connect пишет только Total (без выделения Active). Подтверждено на устройстве Lead'а (OnePlus + Galaxy Watch, 4 тренировки ходьбы → ActiveCalories=null, TotalCalories=полная цифра с BMR). Цифра "Сожжено" теперь содержит базовый метаболизм (~1700-2200 ккал/сутки на покое плюс активность). Психологически нужна UX-полировка — в B-5b.
 
-**Что нужно:**
-- Чтение шагов из Health Connect (Samsung Health, Galaxy Watch)
-- Чтение калорий, сожжённых при активности
-- Автоматическое добавление в блок "Сожжено" в Дневнике дашборде
+**Что нужно (для B-5b):**
+- Steps вывести в UI (читаются и кешируются с B-5a)
+- Privacy Policy реальный текст + публикация на GitHub Pages (требование Play Store)
+- "Открыть настройки Health Connect" intent-кнопка в Settings
+- Debug helper `debugReadAllToLogcat()` под `BuildConfig.DEBUG`
+- UX-полировка "Сожжено" с учётом Total + BMR
 - Опционально (растягиваемый scope): пульс, сон
 
-**AC:**
-- [ ] Запрос permissions Health Connect при первом запуске функции
-- [ ] Чтение Steps за выбранную дату
-- [ ] Чтение ActiveCaloriesBurned за выбранную дату
-- [ ] Дашборд показывает реальное "Сожжено" из Health Connect (плюс ручные ActivityLog из B-0e)
-- [ ] Опция в Настройках: вкл/выкл интеграцию с Health Connect
+**AC оставшиеся для B-5b:**
 - [ ] Privacy Policy опубликована на GitHub Pages (требование Health Connect)
-- [ ] Корректная работа при отсутствии Samsung Health или отказе в permissions
+- [ ] Steps отображаются в Дневнике или Истории
+
+**AC закрытые в B-5a:**
+- [x] Запрос permissions Health Connect при первом запуске функции
+- [x] Чтение Steps за выбранную дату (читается, в UI пока не показываем)
+- [x] Чтение TotalCaloriesBurned за выбранную дату (вместо ActiveCalories — Samsung не пишет Active в HC)
+- [x] Дашборд показывает реальное "Сожжено" из Health Connect (плюс ручные ActivityLog из B-0e)
+- [x] Опция в Настройках: вкл/выкл интеграцию с Health Connect
+- [x] Корректная работа при отсутствии Samsung Health или отказе в permissions
 
 **Технические заметки:**
-- API: `androidx.health.connect.client:connect-client`
+- API: `androidx.health.connect.client:connect-client:1.1.0` (stable)
 - Тест проводится на устройстве Lead'а (Samsung Health → Galaxy Watch уже синхронизированы).
-- Это самая сложная задача в backlog'е, может потребовать декомпозиции.
 
 ---
 
@@ -96,6 +101,22 @@
 **Источник:** ex-KAN-20.
 
 **Технические заметки:** требует миграции БД.
+
+---
+
+### B-tech-4: HC permission auto-sync
+
+**Что:** при mismatch между `granted` и `required` permission set'ами автоматически вызывать `HealthConnectPreferencesRepository.setEnabled(false)`, чтобы Switch в Settings не врал юзеру.
+
+**Сценарии где сейчас Switch остаётся в ON визуально, но фича не работает:**
+1. Юзер revoke'нул permission в системных настройках HC → вернулся в MyFit
+2. Мы расширили `HealthConnectRepository.PERMISSIONS` в новой версии приложения (например, добавили READ_HEART_RATE в B-5b или позже) — старые юзеры с partial grants попадут в этот кейс автоматически
+
+**Где править:** `SettingsViewModel` — на ON_RESUME (рядом с `refreshAvailability`) добавить suspend-check `hasHealthConnectPermissions()` и, если enabled=true && granted=false → `setEnabled(false)`. Учесть race: после launcher → grant → setEnabled(true), ON_RESUME сразу после может опередить DataStore write. Простое решение — debounce 500мс или флаг "just granted".
+
+**Сейчас mitigated:** Dashboard корректно показывает legacy формат через `hcBurnedKcal=null`. То есть фича не ломается, просто UI inconsistency.
+
+**Источник:** обсуждение closure B-5a (2026-05-23).
 
 ---
 
