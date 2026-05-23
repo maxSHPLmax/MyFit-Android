@@ -61,11 +61,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import com.maxshpl.myfit.BuildConfig
 import com.maxshpl.myfit.core.TimePickerDialog
 import com.maxshpl.myfit.health.HealthConnectAvailability
 import com.maxshpl.myfit.health.HealthConnectRepository
+import com.maxshpl.myfit.health.PermissionsRationaleActivity
 import com.maxshpl.myfit.reminders.MealKind
 import com.maxshpl.myfit.reminders.ReminderSlot
 import kotlinx.coroutines.launch
@@ -222,6 +224,13 @@ fun SettingsScreen(
                                 "market://details?id=com.google.android.apps.healthdata",
                             )
                         }
+                        runCatching { context.startActivity(intent) }
+                    },
+                    onOpenHealthConnectSettings = {
+                        // SDK сама подставит правильный action для Android 13- и Android 14+
+                        // (androidx.health.ACTION_HEALTH_CONNECT_SETTINGS vs
+                        // android.health.connect.action.HEALTH_HOME_SETTINGS).
+                        val intent = Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
                         runCatching { context.startActivity(intent) }
                     },
                 )
@@ -507,6 +516,7 @@ private fun SettingsMenuItem(
 @Composable
 private fun AboutDialog(onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("MyFit") },
@@ -524,6 +534,13 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                     onClick = { uriHandler.openUri("https://maxshplmax.github.io/MyFit/") },
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 ) { Text("PWA версия") }
+                TextButton(
+                    onClick = {
+                        val intent = Intent(context, PermissionsRationaleActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                ) { Text("Политика конфиденциальности") }
             }
         },
         confirmButton = {
@@ -598,6 +615,7 @@ private fun HealthConnectSection(
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
     onOpenPlayStore: () -> Unit,
+    onOpenHealthConnectSettings: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -630,6 +648,10 @@ private fun HealthConnectSection(
                             onCheckedChange = onToggle,
                         )
                     }
+                    TextButton(
+                        onClick = onOpenHealthConnectSettings,
+                        contentPadding = PaddingValues(0.dp),
+                    ) { Text("Открыть настройки Health Connect") }
                 }
                 HealthConnectAvailability.ProviderUpdateRequired -> {
                     Text(
