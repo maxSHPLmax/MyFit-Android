@@ -1,12 +1,14 @@
 package com.maxshpl.myfit.health
 
 import android.content.Context
+import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import com.maxshpl.myfit.BuildConfig
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
@@ -50,8 +52,14 @@ class HealthConnectRepository(private val context: Context) {
     suspend fun hasAllPermissions(): Boolean {
         val c = client ?: return false
         return try {
-            c.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
+            val granted = c.permissionController.getGrantedPermissions()
+            val hasAll = granted.containsAll(PERMISSIONS)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "hasAllPermissions: granted=$granted, required=$PERMISSIONS, hasAll=$hasAll")
+            }
+            hasAll
         } catch (e: SecurityException) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "hasAllPermissions: SecurityException", e)
             false
         }
     }
@@ -68,13 +76,26 @@ class HealthConnectRepository(private val context: Context) {
         zone: ZoneId = ZoneId.systemDefault(),
     ): BurnedKcalSummary {
         cacheMutex.withLock {
-            cache[date]?.let { return it }
+            cache[date]?.let {
+                if (BuildConfig.DEBUG) Log.d(TAG, "getOrRead($date): cache HIT → $it")
+                return it
+            }
 
-            val c = client ?: return BurnedKcalSummary.Empty
-            if (!hasAllPermissions()) return BurnedKcalSummary.Empty
+            val c = client
+            if (c == null) {
+                if (BuildConfig.DEBUG) Log.w(TAG, "getOrRead($date): client is null → Empty")
+                return BurnedKcalSummary.Empty
+            }
+            if (!hasAllPermissions()) {
+                if (BuildConfig.DEBUG) Log.w(TAG, "getOrRead($date): missing permissions → Empty")
+                return BurnedKcalSummary.Empty
+            }
 
             val start = date.atStartOfDay(zone).toInstant()
             val end = date.plusDays(1).atStartOfDay(zone).toInstant()
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "getOrRead($date): zone=$zone, start=$start, end=$end")
+            }
 
             val summary = try {
                 val response = c.aggregate(
@@ -86,15 +107,27 @@ class HealthConnectRepository(private val context: Context) {
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                     ),
                 )
+                val activeEnergy = response[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
+                val stepsCount = response[StepsRecord.COUNT_TOTAL]
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        TAG,
+                        "getOrRead($date): aggregate response=" +
+                            "activeEnergy=$activeEnergy (kcal=${activeEnergy?.inKilocalories}), " +
+                            "steps=$stepsCount, " +
+                            "dataOrigins=${response.dataOrigins}",
+                    )
+                }
                 BurnedKcalSummary(
-                    activeKcal = response[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
-                        ?.inKilocalories ?: 0.0,
-                    steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
+                    activeKcal = activeEnergy?.inKilocalories ?: 0.0,
+                    steps = stepsCount ?: 0L,
                 )
             } catch (e: SecurityException) {
+                if (BuildConfig.DEBUG) Log.w(TAG, "getOrRead($date): SecurityException on aggregate", e)
                 BurnedKcalSummary.Empty
             }
 
+            if (BuildConfig.DEBUG) Log.d(TAG, "getOrRead($date): final summary=$summary")
             cache[date] = summary
             return summary
         }
@@ -109,6 +142,8 @@ class HealthConnectRepository(private val context: Context) {
     }
 
     companion object {
+        private const val TAG = "MyFit_HC"
+
         val PERMISSIONS: Set<String> = setOf(
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
             HealthPermission.getReadPermission(StepsRecord::class),
