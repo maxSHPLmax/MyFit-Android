@@ -31,11 +31,15 @@
 
 ## Активный backlog
 
-### B-5: Health Connect — KILLER FEATURE
+### B-5: Health Connect — KILLER FEATURE  `[~]`
 
 **Категория:** Главная цель эпика  
 **Зависимости:** B-0e (нужен ActivityLog для интеграции данных)  
-**Оценка:** большая
+**Оценка:** большая (декомпозирована на B-5a / B-5b)
+
+**Декомпозиция:**
+- **B-5a (в работе):** SDK + permissions + чтение ActiveCalories + интеграция с дашбордом (тайл "Сожжено" с breakdown)
+- **B-5b:** Steps в UI / Privacy Policy / "Открыть настройки HC" / debug helper
 
 **Что нужно:**
 - Чтение шагов из Health Connect (Samsung Health, Galaxy Watch)
