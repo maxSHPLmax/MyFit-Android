@@ -90,7 +90,7 @@ private enum class TopLevelTab(
     val icon: ImageVector? = null,
     @DrawableRes val iconRes: Int? = null,
 ) {
-    Diary(Routes.DIARY, "Дневник", icon = Icons.Default.Home),
+    Diary(Routes.DIARY, "Дашборд", icon = Icons.Default.Home),
     Plan(Routes.PLAN, "План", icon = Icons.Default.DateRange),
     History(Routes.HISTORY, "История", iconRes = R.drawable.ic_bar_chart_24),
     Products(Routes.PRODUCTS, "Продукты", icon = Icons.AutoMirrored.Filled.List),
