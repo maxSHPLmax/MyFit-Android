@@ -115,6 +115,26 @@ class HealthConnectRepository(private val context: Context) {
         cacheMutex.withLock { cache.clear() }
     }
 
+    /**
+     * Debug helper: пишет в Logcat сводку HC данных за последние 7 дней.
+     * Дёргается из Settings DEBUG-кнопки. Полезен при отладке: разногласие
+     * UI vs HC app, проверка работы datasource'ов после смены permissions,
+     * sanity check после изменений aggregate metric'и.
+     *
+     * Тег MyFit_HC — единый с error logging в catch блоках.
+     */
+    suspend fun debugReadAllToLogcat() {
+        Log.d(TAG, "=== debugReadAllToLogcat START ===")
+        Log.d(TAG, "availability=${availability()}, hasPermissions=${hasAllPermissions()}")
+        val today = LocalDate.now()
+        for (offset in 0..6L) {
+            val date = today.minusDays(offset)
+            val summary = getOrRead(date)
+            Log.d(TAG, "$date: burnedKcal=${summary.burnedKcal}, steps=${summary.steps}")
+        }
+        Log.d(TAG, "=== debugReadAllToLogcat END ===")
+    }
+
     companion object {
         private const val TAG = "MyFit_HC"
 

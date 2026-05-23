@@ -233,6 +233,7 @@ fun SettingsScreen(
                         val intent = Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
                         runCatching { context.startActivity(intent) }
                     },
+                    onDebugDump = viewModel::runHealthConnectDebugDump,
                 )
             }
             item("targets") {
@@ -616,6 +617,7 @@ private fun HealthConnectSection(
     onToggle: (Boolean) -> Unit,
     onOpenPlayStore: () -> Unit,
     onOpenHealthConnectSettings: () -> Unit,
+    onDebugDump: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -652,6 +654,13 @@ private fun HealthConnectSection(
                         onClick = onOpenHealthConnectSettings,
                         contentPadding = PaddingValues(0.dp),
                     ) { Text("Открыть настройки Health Connect") }
+                    if (BuildConfig.DEBUG) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = onDebugDump,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("HC: вывести 7 дней в Logcat") }
+                    }
                 }
                 HealthConnectAvailability.ProviderUpdateRequired -> {
                     Text(
