@@ -61,8 +61,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.health.connect.client.PermissionController
 import com.maxshpl.myfit.BuildConfig
 import com.maxshpl.myfit.core.TimePickerDialog
+import com.maxshpl.myfit.health.HealthConnectAvailability
+import com.maxshpl.myfit.health.HealthConnectRepository
 import com.maxshpl.myfit.reminders.MealKind
 import com.maxshpl.myfit.reminders.ReminderSlot
 import kotlinx.coroutines.launch
@@ -76,6 +79,7 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val targetsForm by viewModel.targetsForm.collectAsStateWithLifecycle()
     val remindersConfig by viewModel.remindersConfig.collectAsStateWithLifecycle()
+    val healthConnectEnabled by viewModel.healthConnectEnabled.collectAsStateWithLifecycle()
     var showAbout by remember { mutableStateOf(false) }
     var editingTimeFor by remember { mutableStateOf<MealKind?>(null) }
 
@@ -87,15 +91,54 @@ fun SettingsScreen(
     // ON_RESUME: пользователь мог уйти в системные настройки exact alarms
     // и вернуться → hint card должна обновиться.
     var canScheduleExact by remember { mutableStateOf(viewModel.canScheduleExact()) }
+    // HC availability — то же самое: snapshot SDK status, рефрешим на ON_RESUME
+    // (юзер мог обновить HC через Play Store или включить provider).
+    var healthConnectAvailability by remember {
+        mutableStateOf(viewModel.healthConnectAvailability())
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 canScheduleExact = viewModel.canScheduleExact()
+                healthConnectAvailability = viewModel.healthConnectAvailability()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract(),
+    ) { granted ->
+        if (granted.containsAll(HealthConnectRepository.PERMISSIONS)) {
+            // Permissions подтверждены → DataStore.enabled=true → Switch встанет в ON
+            // через collectAsStateWithLifecycle. Локального state нет, реакция автоматическая.
+            viewModel.setHealthConnectEnabled(true)
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "Доступ к Health Connect не предоставлен",
+                )
+            }
+        }
+    }
+
+    val onToggleHealthConnect: (Boolean) -> Unit = onToggle@{ target ->
+        if (!target) {
+            viewModel.setHealthConnectEnabled(false)
+            return@onToggle
+        }
+        // ON: сначала проверка permissions. Если есть — setEnabled(true) сразу.
+        // Если нет — launcher; setEnabled вызовется только в granted callback.
+        scope.launch {
+            val granted = viewModel.hasHealthConnectPermissions()
+            if (granted) {
+                viewModel.setHealthConnectEnabled(true)
+            } else {
+                healthConnectPermissionLauncher.launch(HealthConnectRepository.PERMISSIONS)
+            }
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -166,6 +209,21 @@ fun SettingsScreen(
                         }
                     },
                     onTestClick = viewModel::scheduleTestReminder,
+                )
+            }
+            item("health_connect") {
+                HealthConnectSection(
+                    availability = healthConnectAvailability,
+                    enabled = healthConnectEnabled,
+                    onToggle = onToggleHealthConnect,
+                    onOpenPlayStore = {
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            data = Uri.parse(
+                                "market://details?id=com.google.android.apps.healthdata",
+                            )
+                        }
+                        runCatching { context.startActivity(intent) }
+                    },
                 )
             }
             item("targets") {
@@ -530,6 +588,71 @@ private fun ThemeSection(
                 selected = selected,
                 onSelect = onSelect,
             )
+        }
+    }
+}
+
+@Composable
+private fun HealthConnectSection(
+    availability: HealthConnectAvailability,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onOpenPlayStore: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Здоровье и активность",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Чтение калорий и шагов из Health Connect (Galaxy Watch, Samsung Health)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            when (availability) {
+                HealthConnectAvailability.Available -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Health Connect",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = enabled,
+                            onCheckedChange = onToggle,
+                        )
+                    }
+                }
+                HealthConnectAvailability.ProviderUpdateRequired -> {
+                    Text(
+                        text = "Требуется обновление Health Connect",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    TextButton(
+                        onClick = onOpenPlayStore,
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) { Text("Открыть Play Store") }
+                }
+                HealthConnectAvailability.NotInstalled -> {
+                    Text(
+                        text = "Health Connect недоступен на этом устройстве",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
         }
     }
 }

@@ -27,15 +27,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.maxshpl.myfit.core.formatGrams
@@ -73,6 +78,29 @@ fun DiaryScreen(
     val today = remember { LocalDate.now() }
     val isToday = state.date == today
 
+    // ON_RESUME → перечитываем HC данные за сегодня. Сценарий: юзер пробежался,
+    // часы синкнулись в HC, юзер вернулся в MyFit — без этого триггера BurnedTile
+    // показывал бы кешированное (устаревшее) значение из repository.
+    //
+    // rememberUpdatedState — selectedDate берётся свежий на каждом emit, иначе
+    // observer закроет старое значение через захват lambda. Также: проверяем
+    // LocalDate.now() в момент resume, не закэшированный `today` — приложение
+    // могло пролежать свёрнутым через полночь.
+    val viewModelState = rememberUpdatedState(viewModel)
+    val selectedDateState = rememberUpdatedState(state.date)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (selectedDateState.value == LocalDate.now()) {
+                    viewModelState.value.refreshTodayHealthData()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -105,7 +133,8 @@ fun DiaryScreen(
                 DashboardSection(
                     totals = state.totals,
                     targets = state.targets,
-                    burnedKcal = state.burnedKcal,
+                    manualBurnedKcal = state.manualBurnedKcal,
+                    hcBurnedKcal = state.hcBurnedKcal,
                 )
             }
             item("plan") {

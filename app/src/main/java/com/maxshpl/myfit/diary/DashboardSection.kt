@@ -24,10 +24,12 @@ import com.maxshpl.myfit.settings.DailyTargets
 fun DashboardSection(
     totals: DayTotals,
     targets: DailyTargets,
-    burnedKcal: Double,
+    manualBurnedKcal: Double,
+    hcBurnedKcal: Double?,
     modifier: Modifier = Modifier,
 ) {
-    val balance = totals.kcal - burnedKcal
+    val totalBurnedKcal = manualBurnedKcal + (hcBurnedKcal ?: 0.0)
+    val balance = totals.kcal - totalBurnedKcal
     val isOverTarget = balance > targets.kcal
     val errorColor = MaterialTheme.colorScheme.error
     val balanceColor = if (isOverTarget) errorColor else MaterialTheme.colorScheme.onSurface
@@ -87,7 +89,8 @@ fun DashboardSection(
                     modifier = Modifier.weight(1f),
                 )
                 BurnedTile(
-                    burned = burnedKcal,
+                    manualBurnedKcal = manualBurnedKcal,
+                    hcBurnedKcal = hcBurnedKcal,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -147,8 +150,28 @@ private fun EatenTile(eaten: Double, target: Int, modifier: Modifier = Modifier)
     }
 }
 
+/**
+ * Три режима отображения:
+ * 1) hcBurnedKcal == null (HC выключен или нет permissions): показываем
+ *    только ручное "Y ккал" — legacy формат до B-5a.
+ * 2) hcBurnedKcal != null, manual == 0: "X ккал" большим + подпись "из Health Connect".
+ * 3) hcBurnedKcal != null, manual > 0: "Z ккал" (=X+Y) большим + breakdown
+ *    "X (часы) + Y (вручную)" мелким.
+ *
+ * Случай (hcBurnedKcal == 0.0, manual == 0) попадает в (2): показывается "0 ккал из HC".
+ * Это намеренно — отличает "HC включён, но сегодня данных нет" от "HC выключен".
+ *
+ * HC даёт TotalCaloriesBurnedRecord (включая BMR), не Active — Samsung Health не пишет
+ * Active в HC. Цифра получается крупная (часто 2000+ ккал). Минимальный hint "с БМР"
+ * показывается под подписью. Полная UX-полировка — B-5b TODO.
+ */
 @Composable
-private fun BurnedTile(burned: Double, modifier: Modifier = Modifier) {
+private fun BurnedTile(
+    manualBurnedKcal: Double,
+    hcBurnedKcal: Double?,
+    modifier: Modifier = Modifier,
+) {
+    val totalKcal = manualBurnedKcal + (hcBurnedKcal ?: 0.0)
     Card(modifier = modifier) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
@@ -158,12 +181,31 @@ private fun BurnedTile(burned: Double, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                "${formatKcal(burned)} ккал",
+                "${formatKcal(totalKcal)} ккал",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(6.dp))
-            Spacer(Modifier.height(4.dp))
+            when {
+                hcBurnedKcal == null -> {
+                    Spacer(Modifier.height(4.dp))
+                }
+                manualBurnedKcal == 0.0 -> {
+                    Text(
+                        "из Health Connect (с БМР)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> {
+                    Text(
+                        "${formatKcal(hcBurnedKcal)} (часы, с БМР) + " +
+                            "${formatKcal(manualBurnedKcal)} (вручную)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

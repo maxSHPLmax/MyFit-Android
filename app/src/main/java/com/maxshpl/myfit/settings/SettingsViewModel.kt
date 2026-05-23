@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.maxshpl.myfit.health.HealthConnectAvailability
+import com.maxshpl.myfit.health.HealthConnectHolder
+import com.maxshpl.myfit.health.HealthConnectPreferencesRepository
+import com.maxshpl.myfit.health.HealthConnectRepository
 import com.maxshpl.myfit.reminders.MealKind
 import com.maxshpl.myfit.reminders.RemindersConfig
 import com.maxshpl.myfit.reminders.RemindersRepository
@@ -47,6 +51,8 @@ class SettingsViewModel(
     private val targetsRepository: TargetsRepository,
     private val remindersRepository: RemindersRepository,
     private val reminderScheduler: ReminderScheduler,
+    private val healthConnectRepository: HealthConnectRepository,
+    private val healthConnectPreferences: HealthConnectPreferencesRepository,
 ) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = themeRepository.themeMode.stateIn(
@@ -59,6 +65,18 @@ class SettingsViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
         initialValue = RemindersConfig.Default,
+    )
+
+    /**
+     * Switch в Settings.HealthConnectSection отражает только это значение.
+     * Локального optimistic state нет: если пользователь тапнул ON и отказал в
+     * permissions через системный диалог HC — setEnabled(true) не вызывается,
+     * DataStore остаётся false, Switch автоматически возвращается в OFF.
+     */
+    val healthConnectEnabled: StateFlow<Boolean> = healthConnectPreferences.enabled.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+        initialValue = false,
     )
 
     private val _targetsForm = MutableStateFlow(TargetsFormState())
@@ -128,6 +146,26 @@ class SettingsViewModel(
      */
     fun canScheduleExact(): Boolean = reminderScheduler.canScheduleExact()
 
+    /**
+     * Snapshot чтения SDK status. UI обновляет его на ON_RESUME — пользователь
+     * мог установить/обновить HC через Play Store. Аналогично canScheduleExact.
+     */
+    fun healthConnectAvailability(): HealthConnectAvailability =
+        healthConnectRepository.availability()
+
+    suspend fun hasHealthConnectPermissions(): Boolean =
+        healthConnectRepository.hasAllPermissions()
+
+    /**
+     * Включение/выключение чтения HC. Из UI вызывается ТОЛЬКО когда permissions
+     * подтверждены (для true) или безусловно (для false). Если permissions нет
+     * и юзер тапнул ON — UI запускает launcher и вызовет setEnabled(true) только
+     * после granted callback. См. требование Lead'а из обсуждения коммита 5.
+     */
+    fun setHealthConnectEnabled(value: Boolean) {
+        viewModelScope.launch { healthConnectPreferences.setEnabled(value) }
+    }
+
     fun scheduleTestReminder() {
         reminderScheduler.scheduleTest(TEST_REMINDER_DELAY_MS)
     }
@@ -182,6 +220,10 @@ class SettingsViewModel(
                     targetsRepository = TargetsRepository(app.settingsDataStore),
                     remindersRepository = RemindersRepository(app.settingsDataStore),
                     reminderScheduler = ReminderScheduler(app),
+                    healthConnectRepository = HealthConnectHolder.get(app),
+                    healthConnectPreferences = HealthConnectPreferencesRepository(
+                        app.settingsDataStore,
+                    ),
                 )
             }
         }
