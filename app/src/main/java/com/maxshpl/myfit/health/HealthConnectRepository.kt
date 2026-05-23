@@ -22,32 +22,23 @@ import java.time.ZoneId
  *
  * Кеш: aggregate() — сетевой/IPC вызов в provider, latency 50-300мс. При свайпе дат на Дневнике
  * это заметно. Держим Map<LocalDate, Summary> в памяти; invalidate(today) дёргается из
- * Lifecycle.ON_RESUME в DiaryScreen (см. коммит 6). Mutex — потому что getOrRead suspend и
- * может вызываться из combine() с разных корутин одновременно.
- *
- * ВРЕМЕННО: логи безусловные (не под BuildConfig.DEBUG) для диагностики бага "0 ккал на всех
- * датах". После решения убрать — это коммит-маркер.
+ * Lifecycle.ON_RESUME в DiaryScreen. Mutex — потому что getOrRead suspend и может вызываться
+ * из combine() с разных корутин одновременно.
  */
 class HealthConnectRepository(private val context: Context) {
 
     private val cache = mutableMapOf<LocalDate, BurnedKcalSummary>()
     private val cacheMutex = Mutex()
 
-    /** Lazy: getOrCreate бросает на устройствах без HC, поэтому проверяем status сначала. */
     private val client: HealthConnectClient? by lazy {
-        val status = rawStatus()
-        Log.d(TAG, "client lazy init: rawStatus=$status (AVAILABLE=${HealthConnectClient.SDK_AVAILABLE})")
-        if (status == HealthConnectClient.SDK_AVAILABLE) {
+        if (rawStatus() == HealthConnectClient.SDK_AVAILABLE) {
             try {
-                HealthConnectClient.getOrCreate(context).also {
-                    Log.d(TAG, "client lazy init: getOrCreate OK")
-                }
+                HealthConnectClient.getOrCreate(context)
             } catch (t: Throwable) {
-                Log.e(TAG, "client lazy init: getOrCreate THREW", t)
+                Log.e(TAG, "client init: getOrCreate threw", t)
                 null
             }
         } else {
-            Log.w(TAG, "client lazy init: status != AVAILABLE → null")
             null
         }
     }
@@ -62,20 +53,11 @@ class HealthConnectRepository(private val context: Context) {
     private fun rawStatus(): Int = HealthConnectClient.getSdkStatus(context)
 
     suspend fun hasAllPermissions(): Boolean {
-        val c = client
-        if (c == null) {
-            Log.w(TAG, "hasAllPermissions: client is null → false")
-            return false
-        }
+        val c = client ?: return false
         return try {
-            val granted = c.permissionController.getGrantedPermissions()
-            val hasAll = granted.containsAll(PERMISSIONS)
-            Log.d(TAG, "hasAllPermissions: granted=$granted")
-            Log.d(TAG, "hasAllPermissions: required=$PERMISSIONS")
-            Log.d(TAG, "hasAllPermissions: containsAll=$hasAll")
-            hasAll
+            c.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
         } catch (t: Throwable) {
-            Log.e(TAG, "hasAllPermissions: THREW", t)
+            Log.e(TAG, "hasAllPermissions: getGrantedPermissions threw", t)
             false
         }
     }
@@ -91,28 +73,14 @@ class HealthConnectRepository(private val context: Context) {
         date: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
     ): BurnedKcalSummary {
-        Log.d(TAG, "getOrRead START date=$date")
         cacheMutex.withLock {
-            cache[date]?.let {
-                Log.d(TAG, "getOrRead($date): cache HIT → $it")
-                return it
-            }
+            cache[date]?.let { return it }
 
-            val avail = availability()
-            val c = client
-            Log.d(TAG, "getOrRead($date): availability=$avail, client=${c != null}")
-            if (c == null) {
-                Log.w(TAG, "getOrRead($date): client is null → Empty (NOT cached)")
-                return BurnedKcalSummary.Empty
-            }
-            if (!hasAllPermissions()) {
-                Log.w(TAG, "getOrRead($date): missing permissions → Empty (NOT cached)")
-                return BurnedKcalSummary.Empty
-            }
+            val c = client ?: return BurnedKcalSummary.Empty
+            if (!hasAllPermissions()) return BurnedKcalSummary.Empty
 
             val start = date.atStartOfDay(zone).toInstant()
             val end = date.plusDays(1).atStartOfDay(zone).toInstant()
-            Log.d(TAG, "getOrRead($date): TimeRange start=$start end=$end zone=$zone")
 
             val summary = try {
                 val response = c.aggregate(
@@ -124,25 +92,16 @@ class HealthConnectRepository(private val context: Context) {
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                     ),
                 )
-                val totalEnergy = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
-                val stepsCount = response[StepsRecord.COUNT_TOTAL]
-                val hasTotal = response.contains(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
-                val hasSteps = response.contains(StepsRecord.COUNT_TOTAL)
-                Log.d(TAG, "getOrRead($date): aggregate OK")
-                Log.d(TAG, "getOrRead($date): hasTotal=$hasTotal, hasSteps=$hasSteps")
-                Log.d(TAG, "getOrRead($date): TotalCalories raw=$totalEnergy (kcal=${totalEnergy?.inKilocalories})")
-                Log.d(TAG, "getOrRead($date): Steps raw=$stepsCount")
-                Log.d(TAG, "getOrRead($date): dataOrigins=${response.dataOrigins}")
                 BurnedKcalSummary(
-                    burnedKcal = totalEnergy?.inKilocalories ?: 0.0,
-                    steps = stepsCount ?: 0L,
+                    burnedKcal = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
+                        ?.inKilocalories ?: 0.0,
+                    steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
                 )
             } catch (t: Throwable) {
-                Log.e(TAG, "getOrRead($date): aggregate THREW", t)
+                Log.e(TAG, "getOrRead($date): aggregate threw", t)
                 BurnedKcalSummary.Empty
             }
 
-            Log.d(TAG, "getOrRead($date): final summary=$summary")
             cache[date] = summary
             return summary
         }
