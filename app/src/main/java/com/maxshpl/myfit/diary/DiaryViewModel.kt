@@ -6,17 +6,23 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.maxshpl.myfit.data.AppDatabase
+import com.maxshpl.myfit.health.HealthConnectHolder
+import com.maxshpl.myfit.health.HealthConnectPreferencesRepository
+import com.maxshpl.myfit.health.HealthConnectRepository
 import com.maxshpl.myfit.plan.PlanRepository
 import com.maxshpl.myfit.settings.DailyTargets
 import com.maxshpl.myfit.settings.TargetsRepository
 import com.maxshpl.myfit.settings.settingsDataStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -38,7 +44,15 @@ data class DiaryUiState(
     val totals: DayTotals,
     val targets: DailyTargets,
     val activityLogs: List<ActivityLogRow>,
-    val burnedKcal: Double,
+    /** Сожжено вручную через ActivityLog (sum kcalPerMin * duration). */
+    val manualBurnedKcal: Double,
+    /**
+     * Сожжено из Health Connect (ActiveCaloriesBurnedRecord за день).
+     * null если HC выключен в настройках, нет permissions, или provider недоступен.
+     * Отличие null от 0.0 важно для BurnedTile breakdown: при null показываем
+     * текущий формат "Y ккал", при 0.0 — формат "0 (часы) + Y (вручную) = Y".
+     */
+    val hcBurnedKcal: Double?,
     val plannedMeals: List<PlannedMealOnDiary>,
 )
 
@@ -49,6 +63,8 @@ class DiaryViewModel(
     private val activityLogRepository: ActivityLogRepository,
     private val dateRepository: DiaryDateRepository,
     private val planRepository: PlanRepository,
+    private val healthConnectRepository: HealthConnectRepository,
+    healthConnectPreferences: HealthConnectPreferencesRepository,
 ) : ViewModel() {
 
     private val initialDate: LocalDate = LocalDate.now()
@@ -56,10 +72,46 @@ class DiaryViewModel(
     private val _selectedDate = MutableStateFlow(initialDate)
     val selectedDate: StateFlow<LocalDate> = _selectedDate
 
+    /**
+     * Тикер для принудительного перечитывания HC данных. Инкрементируется в
+     * refreshTodayHealthData() — её дёргает DiaryScreen из Lifecycle.ON_RESUME.
+     * combine() переиспустит, flatMapLatest перезапустит read.
+     */
+    private val hcRefreshTrigger = MutableStateFlow(0L)
+
     private val rowsFlow = _selectedDate.flatMapLatest { repository.rowsForDate(it) }
     private val totalsFlow = _selectedDate.flatMapLatest { repository.totalsForDate(it) }
     private val activityLogsFlow = _selectedDate.flatMapLatest { activityLogRepository.rowsForDate(it) }
-    private val burnedFlow = _selectedDate.flatMapLatest { activityLogRepository.sumKcalForDate(it) }
+    private val manualBurnedFlow = _selectedDate.flatMapLatest { activityLogRepository.sumKcalForDate(it) }
+
+    /**
+     * HC данные за выбранную дату. Эмитит null когда:
+     * - HC выключен в настройках (enabled flag = false)
+     * - Нет permissions (юзер отозвал в системе)
+     * - Provider недоступен (getOrRead вернул Empty по обоим полям → null,
+     *   потому что 0.0 имеет смысл "часы дают 0 за день" — мы тогда хотим
+     *   показывать breakdown с 0; см. логику BurnedTile в коммите 4).
+     * Кеш живёт в HealthConnectRepository — повторные обращения к той же дате мгновенны.
+     */
+    private val hcBurnedFlow: Flow<Double?> = combine(
+        _selectedDate,
+        healthConnectPreferences.enabled,
+        hcRefreshTrigger,
+    ) { date, enabled, _ -> Triple(date, enabled, Unit) }
+        .flatMapLatest { (date, enabled, _) ->
+            if (!enabled) {
+                flowOf<Double?>(null)
+            } else {
+                flow {
+                    val granted = healthConnectRepository.hasAllPermissions()
+                    if (!granted) {
+                        emit(null)
+                    } else {
+                        emit(healthConnectRepository.getOrRead(date).activeKcal)
+                    }
+                }
+            }
+        }
 
     // План + статус "съел" — один источник даты для обоих внутренних потоков,
     // чтобы при переключении даты meals и appliedIds не разъезжались.
@@ -89,8 +141,9 @@ class DiaryViewModel(
         totalsFlow,
         targetsRepository.targets,
         activityLogsFlow,
-        burnedFlow,
+        manualBurnedFlow,
         plannedMealsFlow,
+        hcBurnedFlow,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         DiaryUiState(
@@ -99,8 +152,9 @@ class DiaryViewModel(
             totals = values[2] as DayTotals,
             targets = values[3] as DailyTargets,
             activityLogs = values[4] as List<ActivityLogRow>,
-            burnedKcal = values[5] as Double,
+            manualBurnedKcal = values[5] as Double,
             plannedMeals = values[6] as List<PlannedMealOnDiary>,
+            hcBurnedKcal = values[7] as Double?,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -111,10 +165,23 @@ class DiaryViewModel(
             totals = DayTotals.Empty,
             targets = DailyTargets.Default,
             activityLogs = emptyList(),
-            burnedKcal = 0.0,
+            manualBurnedKcal = 0.0,
+            hcBurnedKcal = null,
             plannedMeals = emptyList(),
         ),
     )
+
+    /**
+     * Сбрасывает кеш HC для сегодняшней даты и заставляет hcBurnedFlow перечитать.
+     * Дёргается из DiaryScreen на Lifecycle.ON_RESUME (коммит 6) — пользователь мог
+     * сходить на пробежку и вернуться, данные с часов уже синкнулись в HC.
+     */
+    fun refreshTodayHealthData() {
+        viewModelScope.launch {
+            healthConnectRepository.invalidate(LocalDate.now())
+            hcRefreshTrigger.value = System.currentTimeMillis()
+        }
+    }
 
     init {
         // Cold start: применяем 3-day stale fallback однократно — после долгого
@@ -201,6 +268,10 @@ class DiaryViewModel(
                     planRepository = PlanRepository(
                         planDao = db.planDao(),
                         diaryEntryDao = db.diaryEntryDao(),
+                    ),
+                    healthConnectRepository = HealthConnectHolder.get(application),
+                    healthConnectPreferences = HealthConnectPreferencesRepository(
+                        application.settingsDataStore,
                     ),
                 )
             }
