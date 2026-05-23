@@ -38,8 +38,10 @@
 **Оценка:** большая (декомпозирована на B-5a / B-5b)
 
 **Декомпозиция:**
-- **B-5a (в работе):** SDK + permissions + чтение ActiveCalories + интеграция с дашбордом (тайл "Сожжено" с breakdown) + Android 14+ activity-alias `VIEW_PERMISSION_USAGE` (перенесён из B-5b как hotfix — без него HC framework отвергает permission intent на Android 14+)
-- **B-5b:** Steps в UI / Privacy Policy text + GitHub Pages / "Открыть настройки HC" / debug helper
+- **B-5a (в работе):** SDK + permissions + чтение **Total**CaloriesBurned + интеграция с дашбордом (тайл "Сожжено" с breakdown) + Android 14+ activity-alias `VIEW_PERMISSION_USAGE` (перенесён из B-5b как hotfix — без него HC framework отвергает permission intent на Android 14+)
+- **B-5b:** Steps в UI / Privacy Policy text + GitHub Pages / "Открыть настройки HC" / debug helper / **UX-полировка надписи "Сожжено"** с учётом что цифра — Total (включая базовый обмен), не только активность; возможно ввести явное визуальное разделение "BMR + активность" или сделать pill/tooltip с пояснением
+
+**Важное архитектурное решение (smene plan'а B-5):** перешли с `ActiveCaloriesBurnedRecord` на `TotalCaloriesBurnedRecord`. Samsung Health в Health Connect пишет только Total (без выделения Active). Подтверждено на устройстве Lead'а (OnePlus + Galaxy Watch, 4 тренировки ходьбы → ActiveCalories=null, TotalCalories=полная цифра с BMR). Цифра "Сожжено" теперь содержит базовый метаболизм (~1700-2200 ккал/сутки на покое плюс активность). Психологически нужна UX-полировка — в B-5b.
 
 **Что нужно:**
 - Чтение шагов из Health Connect (Samsung Health, Galaxy Watch)

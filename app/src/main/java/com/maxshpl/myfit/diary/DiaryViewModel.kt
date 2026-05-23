@@ -49,7 +49,9 @@ data class DiaryUiState(
     /** Сожжено вручную через ActivityLog (sum kcalPerMin * duration). */
     val manualBurnedKcal: Double,
     /**
-     * Сожжено из Health Connect (ActiveCaloriesBurnedRecord за день).
+     * Сожжено из Health Connect — TotalCaloriesBurnedRecord (включая BMR).
+     * Изначально планировали ActiveCaloriesBurnedRecord, но Samsung Health не пишет
+     * Active в HC — только Total. Подтверждено диагностикой Lead'а на OnePlus + Galaxy Watch.
      * null если HC выключен в настройках, нет permissions, или provider недоступен.
      * Отличие null от 0.0 важно для BurnedTile breakdown: при null показываем
      * текущий формат "Y ккал", при 0.0 — формат "0 (часы) + Y (вручную) = Y".
@@ -123,7 +125,7 @@ class DiaryViewModel(
                     } else {
                         Log.d(HC_TAG, "hcFlow: granted, calling getOrRead($date)")
                         val result = try {
-                            healthConnectRepository.getOrRead(date).activeKcal
+                            healthConnectRepository.getOrRead(date).burnedKcal
                         } catch (t: Throwable) {
                             Log.e(HC_TAG, "hcFlow: getOrRead THREW for date=$date", t)
                             null

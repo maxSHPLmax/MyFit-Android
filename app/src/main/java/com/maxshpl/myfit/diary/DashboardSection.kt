@@ -160,6 +160,10 @@ private fun EatenTile(eaten: Double, target: Int, modifier: Modifier = Modifier)
  *
  * Случай (hcBurnedKcal == 0.0, manual == 0) попадает в (2): показывается "0 ккал из HC".
  * Это намеренно — отличает "HC включён, но сегодня данных нет" от "HC выключен".
+ *
+ * HC даёт TotalCaloriesBurnedRecord (включая BMR), не Active — Samsung Health не пишет
+ * Active в HC. Цифра получается крупная (часто 2000+ ккал). Минимальный hint "с БМР"
+ * показывается под подписью. Полная UX-полировка — B-5b TODO.
  */
 @Composable
 private fun BurnedTile(
@@ -188,14 +192,14 @@ private fun BurnedTile(
                 }
                 manualBurnedKcal == 0.0 -> {
                     Text(
-                        "из Health Connect",
+                        "из Health Connect (с БМР)",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 else -> {
                     Text(
-                        "${formatKcal(hcBurnedKcal)} (часы) + " +
+                        "${formatKcal(hcBurnedKcal)} (часы, с БМР) + " +
                             "${formatKcal(manualBurnedKcal)} (вручную)",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

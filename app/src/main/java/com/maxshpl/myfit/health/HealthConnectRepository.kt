@@ -4,8 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
-import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.sync.Mutex
@@ -118,23 +118,23 @@ class HealthConnectRepository(private val context: Context) {
                 val response = c.aggregate(
                     AggregateRequest(
                         metrics = setOf(
-                            ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
+                            TotalCaloriesBurnedRecord.ENERGY_TOTAL,
                             StepsRecord.COUNT_TOTAL,
                         ),
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                     ),
                 )
-                val activeEnergy = response[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
+                val totalEnergy = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
                 val stepsCount = response[StepsRecord.COUNT_TOTAL]
-                val hasActive = response.contains(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+                val hasTotal = response.contains(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
                 val hasSteps = response.contains(StepsRecord.COUNT_TOTAL)
                 Log.d(TAG, "getOrRead($date): aggregate OK")
-                Log.d(TAG, "getOrRead($date): hasActive=$hasActive, hasSteps=$hasSteps")
-                Log.d(TAG, "getOrRead($date): ActiveCalories raw=$activeEnergy (kcal=${activeEnergy?.inKilocalories})")
+                Log.d(TAG, "getOrRead($date): hasTotal=$hasTotal, hasSteps=$hasSteps")
+                Log.d(TAG, "getOrRead($date): TotalCalories raw=$totalEnergy (kcal=${totalEnergy?.inKilocalories})")
                 Log.d(TAG, "getOrRead($date): Steps raw=$stepsCount")
                 Log.d(TAG, "getOrRead($date): dataOrigins=${response.dataOrigins}")
                 BurnedKcalSummary(
-                    activeKcal = activeEnergy?.inKilocalories ?: 0.0,
+                    burnedKcal = totalEnergy?.inKilocalories ?: 0.0,
                     steps = stepsCount ?: 0L,
                 )
             } catch (t: Throwable) {
@@ -160,7 +160,7 @@ class HealthConnectRepository(private val context: Context) {
         private const val TAG = "MyFit_HC"
 
         val PERMISSIONS: Set<String> = setOf(
-            HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
             HealthPermission.getReadPermission(StepsRecord::class),
         )
     }
