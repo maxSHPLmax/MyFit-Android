@@ -10,4 +10,8 @@
         <item quantity="one">%d diary record</item>
         <item quantity="other">%d diary records</item>
     </plurals>
+
+    <!-- EN fallback for Health Connect privacy rationale. Russian version in values-ru/. -->
+    <string name="privacy_policy_title">Privacy Policy</string>
+    <string name="privacy_policy_body">MyFit is an open-source app for tracking nutrition and activity. All data is stored locally on your device. The app has no server and does not transmit your data to third parties.\n\nFull policy: https://maxshplmax.github.io/MyFit-Android/privacy-policy\nContact: mshestovitskiy@gmail.com</string>
 </resources>
