@@ -38,8 +38,8 @@
 **Оценка:** большая (декомпозирована на B-5a / B-5b)
 
 **Декомпозиция:**
-- **B-5a (в работе):** SDK + permissions + чтение ActiveCalories + интеграция с дашбордом (тайл "Сожжено" с breakdown)
-- **B-5b:** Steps в UI / Privacy Policy / "Открыть настройки HC" / debug helper
+- **B-5a (в работе):** SDK + permissions + чтение ActiveCalories + интеграция с дашбордом (тайл "Сожжено" с breakdown) + Android 14+ activity-alias `VIEW_PERMISSION_USAGE` (перенесён из B-5b как hotfix — без него HC framework отвергает permission intent на Android 14+)
+- **B-5b:** Steps в UI / Privacy Policy text + GitHub Pages / "Открыть настройки HC" / debug helper
 
 **Что нужно:**
 - Чтение шагов из Health Connect (Samsung Health, Galaxy Watch)

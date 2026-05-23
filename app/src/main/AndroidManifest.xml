@@ -54,6 +54,25 @@
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
         </activity>
+
+        <!--
+            Android 14+ требование: без activity-alias с VIEW_PERMISSION_USAGE +
+            HEALTH_PERMISSIONS category HC framework отвергает permission intent
+            моментально через RESULT_CANCELED — system считает app невалидным
+            клиентом. Activity-alias таргетит ту же rationale-активность,
+            что и legacy filter для Android 13-.
+            См. https://developer.android.com/health-and-fitness/health-connect/migration/android-13-to-14
+        -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".health.PermissionsRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
     </application>
 
 </manifest>
