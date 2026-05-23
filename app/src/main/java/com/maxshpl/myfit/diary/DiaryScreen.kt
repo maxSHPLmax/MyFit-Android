@@ -102,12 +102,11 @@ fun DiaryScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item("dashboard") {
-                // Коммит 3: пока проксируем сумму как было до B-5a; коммит 4 заменит на
-                // полный breakdown с раздельными manualBurnedKcal и hcBurnedKcal.
                 DashboardSection(
                     totals = state.totals,
                     targets = state.targets,
-                    burnedKcal = state.manualBurnedKcal + (state.hcBurnedKcal ?: 0.0),
+                    manualBurnedKcal = state.manualBurnedKcal,
+                    hcBurnedKcal = state.hcBurnedKcal,
                 )
             }
             item("plan") {
