@@ -8,7 +8,6 @@ import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.time.TimeRangeFilter
-import com.maxshpl.myfit.BuildConfig
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
@@ -25,6 +24,9 @@ import java.time.ZoneId
  * это заметно. Держим Map<LocalDate, Summary> в памяти; invalidate(today) дёргается из
  * Lifecycle.ON_RESUME в DiaryScreen (см. коммит 6). Mutex — потому что getOrRead suspend и
  * может вызываться из combine() с разных корутин одновременно.
+ *
+ * ВРЕМЕННО: логи безусловные (не под BuildConfig.DEBUG) для диагностики бага "0 ккал на всех
+ * датах". После решения убрать — это коммит-маркер.
  */
 class HealthConnectRepository(private val context: Context) {
 
@@ -33,9 +35,19 @@ class HealthConnectRepository(private val context: Context) {
 
     /** Lazy: getOrCreate бросает на устройствах без HC, поэтому проверяем status сначала. */
     private val client: HealthConnectClient? by lazy {
-        if (rawStatus() == HealthConnectClient.SDK_AVAILABLE) {
-            HealthConnectClient.getOrCreate(context)
+        val status = rawStatus()
+        Log.d(TAG, "client lazy init: rawStatus=$status (AVAILABLE=${HealthConnectClient.SDK_AVAILABLE})")
+        if (status == HealthConnectClient.SDK_AVAILABLE) {
+            try {
+                HealthConnectClient.getOrCreate(context).also {
+                    Log.d(TAG, "client lazy init: getOrCreate OK")
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "client lazy init: getOrCreate THREW", t)
+                null
+            }
         } else {
+            Log.w(TAG, "client lazy init: status != AVAILABLE → null")
             null
         }
     }
@@ -50,23 +62,27 @@ class HealthConnectRepository(private val context: Context) {
     private fun rawStatus(): Int = HealthConnectClient.getSdkStatus(context)
 
     suspend fun hasAllPermissions(): Boolean {
-        val c = client ?: return false
+        val c = client
+        if (c == null) {
+            Log.w(TAG, "hasAllPermissions: client is null → false")
+            return false
+        }
         return try {
             val granted = c.permissionController.getGrantedPermissions()
             val hasAll = granted.containsAll(PERMISSIONS)
-            if (BuildConfig.DEBUG) {
-                Log.d(TAG, "hasAllPermissions: granted=$granted, required=$PERMISSIONS, hasAll=$hasAll")
-            }
+            Log.d(TAG, "hasAllPermissions: granted=$granted")
+            Log.d(TAG, "hasAllPermissions: required=$PERMISSIONS")
+            Log.d(TAG, "hasAllPermissions: containsAll=$hasAll")
             hasAll
-        } catch (e: SecurityException) {
-            if (BuildConfig.DEBUG) Log.w(TAG, "hasAllPermissions: SecurityException", e)
+        } catch (t: Throwable) {
+            Log.e(TAG, "hasAllPermissions: THREW", t)
             false
         }
     }
 
     /**
      * Возвращает агрегированную сводку за календарный день в указанной зоне.
-     * Result.Empty в случаях: HC недоступен / нет permissions / SecurityException на чтении.
+     * Result.Empty в случаях: HC недоступен / нет permissions / любой Throwable на чтении.
      *
      * Mutex держим вокруг проверки-и-чтения, чтобы одновременные вызовы getOrRead(same date)
      * не сделали два aggregate() запроса.
@@ -75,27 +91,28 @@ class HealthConnectRepository(private val context: Context) {
         date: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
     ): BurnedKcalSummary {
+        Log.d(TAG, "getOrRead START date=$date")
         cacheMutex.withLock {
             cache[date]?.let {
-                if (BuildConfig.DEBUG) Log.d(TAG, "getOrRead($date): cache HIT → $it")
+                Log.d(TAG, "getOrRead($date): cache HIT → $it")
                 return it
             }
 
+            val avail = availability()
             val c = client
+            Log.d(TAG, "getOrRead($date): availability=$avail, client=${c != null}")
             if (c == null) {
-                if (BuildConfig.DEBUG) Log.w(TAG, "getOrRead($date): client is null → Empty")
+                Log.w(TAG, "getOrRead($date): client is null → Empty (NOT cached)")
                 return BurnedKcalSummary.Empty
             }
             if (!hasAllPermissions()) {
-                if (BuildConfig.DEBUG) Log.w(TAG, "getOrRead($date): missing permissions → Empty")
+                Log.w(TAG, "getOrRead($date): missing permissions → Empty (NOT cached)")
                 return BurnedKcalSummary.Empty
             }
 
             val start = date.atStartOfDay(zone).toInstant()
             val end = date.plusDays(1).atStartOfDay(zone).toInstant()
-            if (BuildConfig.DEBUG) {
-                Log.d(TAG, "getOrRead($date): zone=$zone, start=$start, end=$end")
-            }
+            Log.d(TAG, "getOrRead($date): TimeRange start=$start end=$end zone=$zone")
 
             val summary = try {
                 val response = c.aggregate(
@@ -109,25 +126,23 @@ class HealthConnectRepository(private val context: Context) {
                 )
                 val activeEnergy = response[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
                 val stepsCount = response[StepsRecord.COUNT_TOTAL]
-                if (BuildConfig.DEBUG) {
-                    Log.d(
-                        TAG,
-                        "getOrRead($date): aggregate response=" +
-                            "activeEnergy=$activeEnergy (kcal=${activeEnergy?.inKilocalories}), " +
-                            "steps=$stepsCount, " +
-                            "dataOrigins=${response.dataOrigins}",
-                    )
-                }
+                val hasActive = response.contains(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+                val hasSteps = response.contains(StepsRecord.COUNT_TOTAL)
+                Log.d(TAG, "getOrRead($date): aggregate OK")
+                Log.d(TAG, "getOrRead($date): hasActive=$hasActive, hasSteps=$hasSteps")
+                Log.d(TAG, "getOrRead($date): ActiveCalories raw=$activeEnergy (kcal=${activeEnergy?.inKilocalories})")
+                Log.d(TAG, "getOrRead($date): Steps raw=$stepsCount")
+                Log.d(TAG, "getOrRead($date): dataOrigins=${response.dataOrigins}")
                 BurnedKcalSummary(
                     activeKcal = activeEnergy?.inKilocalories ?: 0.0,
                     steps = stepsCount ?: 0L,
                 )
-            } catch (e: SecurityException) {
-                if (BuildConfig.DEBUG) Log.w(TAG, "getOrRead($date): SecurityException on aggregate", e)
+            } catch (t: Throwable) {
+                Log.e(TAG, "getOrRead($date): aggregate THREW", t)
                 BurnedKcalSummary.Empty
             }
 
-            if (BuildConfig.DEBUG) Log.d(TAG, "getOrRead($date): final summary=$summary")
+            Log.d(TAG, "getOrRead($date): final summary=$summary")
             cache[date] = summary
             return summary
         }

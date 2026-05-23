@@ -1,5 +1,6 @@
 package com.maxshpl.myfit.diary
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -97,21 +99,42 @@ class DiaryViewModel(
         _selectedDate,
         healthConnectPreferences.enabled,
         hcRefreshTrigger,
-    ) { date, enabled, _ -> Triple(date, enabled, Unit) }
+    ) { date, enabled, trigger ->
+        Log.d(HC_TAG, "hcFlow combine: date=$date, enabled=$enabled, trigger=$trigger")
+        Triple(date, enabled, Unit)
+    }
         .flatMapLatest { (date, enabled, _) ->
+            Log.d(HC_TAG, "hcFlow flatMapLatest: date=$date, enabled=$enabled")
             if (!enabled) {
+                Log.d(HC_TAG, "hcFlow: enabled=false → flowOf(null)")
                 flowOf<Double?>(null)
             } else {
                 flow {
-                    val granted = healthConnectRepository.hasAllPermissions()
+                    Log.d(HC_TAG, "hcFlow: enabled=true, checking permissions for date=$date")
+                    val granted = try {
+                        healthConnectRepository.hasAllPermissions()
+                    } catch (t: Throwable) {
+                        Log.e(HC_TAG, "hcFlow: hasAllPermissions THREW", t)
+                        false
+                    }
                     if (!granted) {
+                        Log.w(HC_TAG, "hcFlow: not granted → emit(null) for date=$date")
                         emit(null)
                     } else {
-                        emit(healthConnectRepository.getOrRead(date).activeKcal)
+                        Log.d(HC_TAG, "hcFlow: granted, calling getOrRead($date)")
+                        val result = try {
+                            healthConnectRepository.getOrRead(date).activeKcal
+                        } catch (t: Throwable) {
+                            Log.e(HC_TAG, "hcFlow: getOrRead THREW for date=$date", t)
+                            null
+                        }
+                        Log.d(HC_TAG, "hcFlow: emit($result) for date=$date")
+                        emit(result)
                     }
                 }
             }
         }
+        .onEach { value -> Log.d(HC_TAG, "hcFlow downstream emit: $value") }
 
     // План + статус "съел" — один источник даты для обоих внутренних потоков,
     // чтобы при переключении даты meals и appliedIds не разъезжались.
@@ -254,6 +277,9 @@ class DiaryViewModel(
         // После N дней простоя cold start открывает сегодня, не последнюю дату.
         // Применяется только в init, не в repository. См. init блок.
         private const val STALE_THRESHOLD_DAYS = 3L
+
+        // Временный тег для диагностики B-5a "0 ккал". Убрать после фикса.
+        private const val HC_TAG = "MyFit_HC"
 
         val Factory = viewModelFactory {
             initializer {
