@@ -124,13 +124,16 @@ class HealthConnectRepository(private val context: Context) {
     }
 
     /**
-     * Debug helper: пишет в Logcat сводку HC данных за 3 блока дальности в прошлое.
-     * Дёргается из Settings DEBUG-кнопки.
+     * Debug helper: пишет в Logcat сводку HC данных за 4 7-дневных окна, разнесённых
+     * по времени от сегодня до ~3 месяцев назад. Дёргается из Settings DEBUG-кнопки.
      *
-     * Зачем 3 блока: проверяем гипотезу что HC TotalCaloriesBurnedRecord.ENERGY_TOTAL
-     * для empty range возвращает BMR fallback из Samsung Health user profile
-     * (вместо null). Если 1564 повторяется во всех трёх блоках одинаково — гипотеза
-     * подтверждена. dataOrigins покажет, контрибьютил ли кто-то реальными данными.
+     * Зачем 4 разнесённых блока: проверяем гипотезу, что HC
+     * TotalCaloriesBurnedRecord.ENERGY_TOTAL для empty range возвращает BMR fallback
+     * из Samsung Health user profile (а не null/0). Известно: будущие даты дают 1564
+     * (фикс 302b466 их клампит). Сейчас Lead видит 1564 ВО ВСЕХ старых датах. Если
+     * 1564 повторяется в окнах 30/60/90 дней назад и dataOrigins для них пустой —
+     * гипотеза подтверждена, и нужен симметричный фикс: трактовать "computed-only"
+     * результат (origins пуст) как Empty.
      *
      * invalidateAll() в начале — чтобы каждый getOrRead был свежим, не cache hit'ом.
      */
@@ -139,16 +142,26 @@ class HealthConnectRepository(private val context: Context) {
         Log.d(TAG, "availability=${availability()}, hasPermissions=${hasAllPermissions()}")
         invalidateAll()
         val today = LocalDate.now()
-        val blocks = listOf(0L, 30L, 60L, 90L)
-        for (blockStart in blocks) {
-            Log.d(TAG, "--- Block: today - $blockStart days ---")
-            for (offsetInBlock in 0L..6L) {
-                val date = today.minusDays(blockStart + offsetInBlock)
+        // Каждый блок — LongRange daysAgo. Окна: сегодняшняя неделя, месяц назад,
+        // два месяца назад, три месяца назад. Покрывает весь спектр от "точно есть
+        // данные с часов" до "точно ничего не было".
+        val blocks = listOf(
+            0L..6L,
+            24L..30L,
+            54L..60L,
+            84L..90L,
+        )
+        for (block in blocks) {
+            val oldest = today.minusDays(block.last)
+            val newest = today.minusDays(block.first)
+            Log.d(TAG, "--- Block: $oldest .. $newest (daysAgo ${block.last}..${block.first}) ---")
+            for (daysAgo in block) {
+                val date = today.minusDays(daysAgo)
                 val summary = getOrRead(date)
                 val origins = debugAggregateOrigins(date)
                 Log.d(
                     TAG,
-                    "$date (offset ${blockStart + offsetInBlock}): " +
+                    "$date (daysAgo $daysAgo): " +
                         "burnedKcal=${summary.burnedKcal}, steps=${summary.steps}, " +
                         "origins=$origins",
                 )
