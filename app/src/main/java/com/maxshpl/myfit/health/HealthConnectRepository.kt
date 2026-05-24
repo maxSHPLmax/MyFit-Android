@@ -73,6 +73,14 @@ class HealthConnectRepository(private val context: Context) {
         date: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
     ): BurnedKcalSummary {
+        // Будущие даты: HC aggregate за полностью future range возвращает latest
+        // BMR snapshot (наблюдаемо на устройстве Lead'а — 25/26 мая = значение
+        // последнего завершённого дня, 23 мая = 1564). Это семантически некорректно
+        // показывать как "сожжено" — день ещё не наступил. Возвращаем Empty без
+        // запроса в HC и без кеширования: завтра, когда сегодня станет вчера,
+        // запрос должен пройти нормальным путём.
+        if (date.isAfter(LocalDate.now(zone))) return BurnedKcalSummary.Empty
+
         cacheMutex.withLock {
             cache[date]?.let { return it }
 
