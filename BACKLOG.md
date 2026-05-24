@@ -104,6 +104,19 @@
 
 ---
 
+### B-tech-CI: тестовая инфраструктура (заглушка)
+
+**Что:** настроить unit-тесты и/или instrumentation tests для критических repository/flow паттернов.
+
+**Известные сценарии для покрытия:**
+- `HistoryRepository.observeRange` когда `activity_log` пуст за период → должен вернуть list с `kcalBurned=0` для каждого дня (не падать, не пропускать дни). Источник: B-5b диагностика 2026-05-24, Lead тестировал dashboard без записи ручных активностей, History показывала "Сжёг: 0" во всех днях — это было правильно, но потребовало pull БД + ручной SQL для подтверждения.
+- `HealthConnectRepository.getOrRead(date.isAfter(today))` → должен вернуть `Empty` без HC запроса (clamp future, B-5b фикс).
+- Cache invalidation/getOrRead с одинаковой датой из двух корутин одновременно (Mutex поведение).
+
+**Технические заметки:** требует решения по test framework (junit4 уже подключён, нужны корутиновые тесты с `runTest` + fake DAO). Объём ≥ нескольких дней.
+
+---
+
 ### B-tech-4: HC permission auto-sync
 
 **Что:** при mismatch между `granted` и `required` permission set'ами автоматически вызывать `HealthConnectPreferencesRepository.setEnabled(false)`, чтобы Switch в Settings не врал юзеру.

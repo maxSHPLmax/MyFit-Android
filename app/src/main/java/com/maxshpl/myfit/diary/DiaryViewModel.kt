@@ -1,6 +1,5 @@
 package com.maxshpl.myfit.diary
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -100,26 +99,17 @@ class DiaryViewModel(
         _selectedDate,
         healthConnectPreferences.enabled,
         hcRefreshTrigger,
-    ) { date, enabled, trigger ->
-        Log.d(HC_TAG, "hcBurnedFlow combine UPSTREAM: date=$date, enabled=$enabled, trigger=$trigger")
-        Triple(date, enabled, Unit)
-    }
+    ) { date, enabled, _ -> Triple(date, enabled, Unit) }
         .flatMapLatest { (date, enabled, _) ->
-            Log.d(HC_TAG, "hcBurnedFlow flatMapLatest ENTER: date=$date, enabled=$enabled")
             if (!enabled) {
-                Log.d(HC_TAG, "hcBurnedFlow: enabled=false → emit(null) for date=$date")
                 flowOf<Double?>(null)
             } else {
                 flow {
-                    Log.d(HC_TAG, "hcBurnedFlow: calling getOrRead($date)")
                     val granted = healthConnectRepository.hasAllPermissions()
                     if (!granted) {
-                        Log.w(HC_TAG, "hcBurnedFlow: no permissions → emit(null) for date=$date")
                         emit(null)
                     } else {
-                        val result = healthConnectRepository.getOrRead(date).burnedKcal
-                        Log.d(HC_TAG, "hcBurnedFlow EMIT: date=$date → value=$result")
-                        emit(result)
+                        emit(healthConnectRepository.getOrRead(date).burnedKcal)
                     }
                 }
             }
@@ -158,7 +148,7 @@ class DiaryViewModel(
         hcBurnedFlow,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
-        val state = DiaryUiState(
+        DiaryUiState(
             date = values[0] as LocalDate,
             rows = values[1] as List<DiaryRow>,
             totals = values[2] as DayTotals,
@@ -168,14 +158,6 @@ class DiaryViewModel(
             plannedMeals = values[6] as List<PlannedMealOnDiary>,
             hcBurnedKcal = values[7] as Double?,
         )
-        Log.d(
-            HC_TAG,
-            "uiState COMBINE: state.date=${state.date}, " +
-                "manualBurnedKcal=${state.manualBurnedKcal}, " +
-                "hcBurnedKcal=${state.hcBurnedKcal}, " +
-                "totals.kcal=${state.totals.kcal}",
-        )
-        state
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -274,10 +256,6 @@ class DiaryViewModel(
         // После N дней простоя cold start открывает сегодня, не последнюю дату.
         // Применяется только в init, не в repository. См. init блок.
         private const val STALE_THRESHOLD_DAYS = 3L
-
-        // Временный тег для диагностики B-5b регрессии "не-today даты залипают на 1564".
-        // Убрать cleanup-коммитом после фикса.
-        private const val HC_TAG = "MyFit_HC"
 
         val Factory = viewModelFactory {
             initializer {
