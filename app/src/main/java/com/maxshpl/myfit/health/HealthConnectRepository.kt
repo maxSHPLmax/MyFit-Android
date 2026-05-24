@@ -64,7 +64,14 @@ class HealthConnectRepository(private val context: Context) {
 
     /**
      * Возвращает агрегированную сводку за календарный день в указанной зоне.
-     * Result.Empty в случаях: HC недоступен / нет permissions / любой Throwable на чтении.
+     * Result.Empty в случаях:
+     *  - HC недоступен / нет permissions / любой Throwable на чтении
+     *  - aggregate вернул response с пустым dataOrigins (= ни один источник не
+     *    контрибьютил реальных записей за период). Без этой проверки HC отдаёт
+     *    BMR baseline (~1564 ккал) за каждый пустой день — для Samsung Health это
+     *    систематически случается для дат вне sliding window провайдера (~7 дней).
+     *    Lead подтвердил: в HC app данных нет до 17 мая, а наш UI рисовал 1564
+     *    везде в прошлом до марта.
      *
      * Mutex держим вокруг проверки-и-чтения, чтобы одновременные вызовы getOrRead(same date)
      * не сделали два aggregate() запроса.
@@ -100,11 +107,18 @@ class HealthConnectRepository(private val context: Context) {
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                     ),
                 )
-                BurnedKcalSummary(
-                    burnedKcal = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
-                        ?.inKilocalories ?: 0.0,
-                    steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
-                )
+                if (response.dataOrigins.isEmpty()) {
+                    // Реальных записей за день нет. ENERGY_TOTAL тут — computed-only
+                    // BMR fallback, показывать его нельзя. Кешируем как Empty, чтобы
+                    // не дёргать aggregate повторно при возврате на ту же дату.
+                    BurnedKcalSummary.Empty
+                } else {
+                    BurnedKcalSummary(
+                        burnedKcal = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
+                            ?.inKilocalories ?: 0.0,
+                        steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
+                    )
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "getOrRead($date): aggregate threw", t)
                 BurnedKcalSummary.Empty
