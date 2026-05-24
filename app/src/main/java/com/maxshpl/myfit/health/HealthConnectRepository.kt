@@ -124,23 +124,66 @@ class HealthConnectRepository(private val context: Context) {
     }
 
     /**
-     * Debug helper: пишет в Logcat сводку HC данных за последние 7 дней.
-     * Дёргается из Settings DEBUG-кнопки. Полезен при отладке: разногласие
-     * UI vs HC app, проверка работы datasource'ов после смены permissions,
-     * sanity check после изменений aggregate metric'и.
+     * Debug helper: пишет в Logcat сводку HC данных за 3 блока дальности в прошлое.
+     * Дёргается из Settings DEBUG-кнопки.
      *
-     * Тег MyFit_HC — единый с error logging в catch блоках.
+     * Зачем 3 блока: проверяем гипотезу что HC TotalCaloriesBurnedRecord.ENERGY_TOTAL
+     * для empty range возвращает BMR fallback из Samsung Health user profile
+     * (вместо null). Если 1564 повторяется во всех трёх блоках одинаково — гипотеза
+     * подтверждена. dataOrigins покажет, контрибьютил ли кто-то реальными данными.
+     *
+     * invalidateAll() в начале — чтобы каждый getOrRead был свежим, не cache hit'ом.
      */
     suspend fun debugReadAllToLogcat() {
         Log.d(TAG, "=== debugReadAllToLogcat START ===")
         Log.d(TAG, "availability=${availability()}, hasPermissions=${hasAllPermissions()}")
+        invalidateAll()
         val today = LocalDate.now()
-        for (offset in 0..6L) {
-            val date = today.minusDays(offset)
-            val summary = getOrRead(date)
-            Log.d(TAG, "$date: burnedKcal=${summary.burnedKcal}, steps=${summary.steps}")
+        val blocks = listOf(0L, 30L, 60L, 90L)
+        for (blockStart in blocks) {
+            Log.d(TAG, "--- Block: today - $blockStart days ---")
+            for (offsetInBlock in 0L..6L) {
+                val date = today.minusDays(blockStart + offsetInBlock)
+                val summary = getOrRead(date)
+                val origins = debugAggregateOrigins(date)
+                Log.d(
+                    TAG,
+                    "$date (offset ${blockStart + offsetInBlock}): " +
+                        "burnedKcal=${summary.burnedKcal}, steps=${summary.steps}, " +
+                        "origins=$origins",
+                )
+            }
         }
         Log.d(TAG, "=== debugReadAllToLogcat END ===")
+    }
+
+    /**
+     * Debug-only: повторный aggregate без кеширования, чтобы вытащить dataOrigins.
+     * Если origins пустой — значит aggregate был computed-only (BMR fallback).
+     * Если есть — реальные данные из Samsung Health / других источников.
+     */
+    private suspend fun debugAggregateOrigins(
+        date: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        val c = client ?: return "client=null"
+        if (date.isAfter(LocalDate.now(zone))) return "future"
+        val start = date.atStartOfDay(zone).toInstant()
+        val end = date.plusDays(1).atStartOfDay(zone).toInstant()
+        return try {
+            val response = c.aggregate(
+                AggregateRequest(
+                    metrics = setOf(
+                        TotalCaloriesBurnedRecord.ENERGY_TOTAL,
+                        StepsRecord.COUNT_TOTAL,
+                    ),
+                    timeRangeFilter = TimeRangeFilter.between(start, end),
+                ),
+            )
+            response.dataOrigins.joinToString(",") { it.packageName }.ifEmpty { "<empty>" }
+        } catch (t: Throwable) {
+            "THREW: ${t.javaClass.simpleName}"
+        }
     }
 
     companion object {
