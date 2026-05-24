@@ -68,6 +68,9 @@
 - API: `androidx.health.connect.client:connect-client:1.1.0` (stable)
 - Тест проводится на устройстве Lead'а (Samsung Health → Galaxy Watch уже синхронизированы).
 
+**Известные ограничения (документировано 2026-05-24):**
+- **Sliding window Samsung Health:** исторические данные за 7-30 дней в HC могут содержать только BMR baseline (без реальной активности). В Дневнике для таких дней может отображаться baseline ~1500-1700 ккал как "Сожжено". Текущий фикс `dataOrigins.isEmpty()` отсекает только даты ВНЕ окна Samsung Health (~30 дней назад и старше). Внутри окна Samsung Health прописывает себя в origins даже за пустые дни. Не критично для главного use case (сегодня + ближайшие 7 дней). UX может быть улучшен в [B-tech-5](#b-tech-5-hc-empty-day-detection-через-readrecords) через `readRecords(ActiveCaloriesBurnedRecord)` проверку наличия реальных записей активности.
+
 ---
 
 ### B-6: Release APK + распространение
@@ -130,6 +133,32 @@
 **Сейчас mitigated:** Dashboard корректно показывает legacy формат через `hcBurnedKcal=null`. То есть фича не ломается, просто UI inconsistency.
 
 **Источник:** обсуждение closure B-5a (2026-05-23).
+
+---
+
+### B-tech-5: HC empty day detection через readRecords
+
+**Категория:** UX polish  
+**Приоритет:** после v1.0.0  
+**Источник:** B-5b диагностика на устройстве Lead'а 2026-05-24
+
+**Что:** В `HealthConnectRepository.getOrRead` — для определения "пустого дня" (только BMR baseline без активности) использовать `readRecords(ActiveCaloriesBurnedRecord)` или `readRecords(ExerciseSessionRecord)` вместо текущей проверки `dataOrigins.isEmpty()`.
+
+**Почему текущая логика недостаточна:** Samsung Health синхронизирует исторические шаги в HC даже за дни без реальной активности (внутри своего ~30-дневного sliding window). В таких случаях:
+- `dataOrigins` НЕ пустой (Samsung Health прописывает себя как источник),
+- `StepsRecord.COUNT_TOTAL` > 0 (фантомные исторические шаги),
+- `TotalCaloriesBurnedRecord.ENERGY_TOTAL` ≈ 1564 ккал (только BMR baseline, без реальных Active calories).
+
+Подтверждено на устройстве Lead'а: 10 мая 2026 — steps=6781, totalEnergy=1564.5, при этом Lead в тот день HC не использовал и часы не носил.
+
+**План:**
+1. Добавить permission `android.permission.health.READ_ACTIVE_CALORIES_BURNED` в AndroidManifest.xml + в `PERMISSIONS` set в `HealthConnectRepository`. Это НОВЫЙ permission, не равен `READ_TOTAL_CALORIES_BURNED` — Lead должен будет заново открыть HC dialog (UI это умеет через `hasAllPermissions()`).
+2. В `getOrRead`: перед `aggregate()` сделать `readRecords(ActiveCaloriesBurnedRecord)` за то же время. Если пустой список → return `Empty` (только BMR fallback, реальной активности нет).
+3. Альтернатива без новых permissions (проверить первой через диагностику): `readRecords(TotalCaloriesBurnedRecord)` — есть гипотеза, что HC возвращает 1564 как computed BMR fallback, а readRecords отдаёт только реально сохранённые записи. Если sum readRecords ≈ 0 для phantom day — используем этот вариант и permission не нужен.
+4. Убрать проверку `dataOrigins.isEmpty()` (она остаётся как safety net или удаляется — решается по факту).
+5. Прогнать debug helper `debugReadAllToLogcat()` на 4 разнесённых окнах, убедиться что phantom days корректно → Empty, а реальные дни → правильные значения.
+
+**Технические заметки:** требует решения по permission (новый или нет) на основе диагностики через extended debug helper. Объём — 1-2 дня.
 
 ---
 
