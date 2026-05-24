@@ -66,12 +66,13 @@ class HealthConnectRepository(private val context: Context) {
      * Возвращает агрегированную сводку за календарный день в указанной зоне.
      * Result.Empty в случаях:
      *  - HC недоступен / нет permissions / любой Throwable на чтении
-     *  - aggregate вернул response с пустым dataOrigins (= ни один источник не
-     *    контрибьютил реальных записей за период). Без этой проверки HC отдаёт
-     *    BMR baseline (~1564 ккал) за каждый пустой день — для Samsung Health это
-     *    систематически случается для дат вне sliding window провайдера (~7 дней).
-     *    Lead подтвердил: в HC app данных нет до 17 мая, а наш UI рисовал 1564
-     *    везде в прошлом до марта.
+     *  - StepsRecord.COUNT_TOTAL = null или 0 за день. Это сигнал "день без
+     *    реальной активности": часы не носились, человек не двигался. Без этого
+     *    фильтра HC отдаёт BMR baseline (~1564 ккал) через TotalCaloriesBurnedRecord
+     *    даже для полностью пустых дней. Проверка dataOrigins оказалась
+     *    недостаточной: Samsung Health прописывает себя в origins внутри своего
+     *    sliding window (~30 дней), но реальных шагов/калорий за конкретный день
+     *    там может не быть. Шаги — самый надёжный proxy на "было ли что мерять".
      *
      * Mutex держим вокруг проверки-и-чтения, чтобы одновременные вызовы getOrRead(same date)
      * не сделали два aggregate() запроса.
@@ -107,16 +108,21 @@ class HealthConnectRepository(private val context: Context) {
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                     ),
                 )
-                if (response.dataOrigins.isEmpty()) {
-                    // Реальных записей за день нет. ENERGY_TOTAL тут — computed-only
-                    // BMR fallback, показывать его нельзя. Кешируем как Empty, чтобы
-                    // не дёргать aggregate повторно при возврате на ту же дату.
+                val stepsCount = response[StepsRecord.COUNT_TOTAL]
+                val totalEnergy = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
+                Log.d(
+                    TAG,
+                    "getOrRead($date): steps=$stepsCount, totalEnergy=${totalEnergy?.inKilocalories}",
+                )
+                if (stepsCount == null || stepsCount == 0L) {
+                    // День без реальной активности. totalEnergy здесь — BMR baseline
+                    // от HC, показывать нельзя. Кешируем как Empty, чтобы не дёргать
+                    // aggregate повторно при возврате на ту же дату.
                     BurnedKcalSummary.Empty
                 } else {
                     BurnedKcalSummary(
-                        burnedKcal = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
-                            ?.inKilocalories ?: 0.0,
-                        steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
+                        burnedKcal = totalEnergy?.inKilocalories ?: 0.0,
+                        steps = stepsCount,
                     )
                 }
             } catch (t: Throwable) {
