@@ -21,10 +21,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -56,7 +55,6 @@ import java.util.Locale
 private val HeaderDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale.forLanguageTag("ru"))
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryScreen(
     onAddProductClick: (LocalDate) -> Unit,
@@ -101,66 +99,55 @@ fun DiaryScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    DateSwitcherTitle(
-                        date = state.date,
-                        onPrev = viewModel::goPrev,
-                        onNext = viewModel::goNext,
-                        onDateClick = { showDatePicker = true },
-                    )
-                },
-                actions = {
-                    if (!isToday) {
-                        TextButton(onClick = viewModel::goToday) {
-                            Text("Сегодня")
-                        }
-                    }
-                },
+    // Без своего Scaffold — outer Scaffold в AppNav уже даёт padding под status bar
+    // и bottom nav. TopAppBar убран по UX-полировке B-5b (макет Lead'а): иерархия
+    // важности контента, заголовок "Дневник" больше не нужен (есть в bottom nav).
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item("date_switcher") {
+            DateSwitcherSection(
+                date = state.date,
+                isToday = isToday,
+                onPrev = viewModel::goPrev,
+                onNext = viewModel::goNext,
+                onDateClick = { showDatePicker = true },
+                onTodayClick = viewModel::goToday,
             )
-        },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item("dashboard") {
-                DashboardSection(
-                    totals = state.totals,
-                    targets = state.targets,
-                    manualBurnedKcal = state.manualBurnedKcal,
-                    hcBurnedKcal = state.hcBurnedKcal,
-                )
-            }
-            item("plan") {
-                PlanSection(
-                    plannedMeals = state.plannedMeals,
-                    onApplyMeal = viewModel::applyPlannedMeal,
-                    onUnapplyMeal = viewModel::unapplyPlannedMeal,
-                    onOpenPlanClick = onOpenPlanClick,
-                )
-            }
-            item("food") {
-                FoodSection(
-                    rows = state.rows,
-                    onAddClick = { onAddProductClick(state.date) },
-                    onRowClick = { row -> onEditEntryClick(row.entryId) },
-                    onSwipeRow = { row -> pendingDeleteRowId = row.entryId },
-                )
-            }
-            item("activities") {
-                ActivitiesSection(
-                    logs = state.activityLogs,
-                    onAddClick = { onAddActivityClick(state.date) },
-                    onRowClick = { log -> onEditActivityLogClick(log.logId) },
-                    onSwipeLog = { log -> pendingDeleteLogId = log.logId },
-                )
-            }
+        }
+        item("dashboard") {
+            DashboardSection(
+                totals = state.totals,
+                targets = state.targets,
+                manualBurnedKcal = state.manualBurnedKcal,
+                hcBurnedKcal = state.hcBurnedKcal,
+            )
+        }
+        item("plan") {
+            PlanSection(
+                plannedMeals = state.plannedMeals,
+                onApplyMeal = viewModel::applyPlannedMeal,
+                onUnapplyMeal = viewModel::unapplyPlannedMeal,
+                onOpenPlanClick = onOpenPlanClick,
+            )
+        }
+        item("food") {
+            FoodSection(
+                rows = state.rows,
+                onAddClick = { onAddProductClick(state.date) },
+                onRowClick = { row -> onEditEntryClick(row.entryId) },
+                onSwipeRow = { row -> pendingDeleteRowId = row.entryId },
+            )
+        }
+        item("activities") {
+            ActivitiesSection(
+                logs = state.activityLogs,
+                onAddClick = { onAddActivityClick(state.date) },
+                onRowClick = { log -> onEditActivityLogClick(log.logId) },
+                onSwipeLog = { log -> pendingDeleteLogId = log.logId },
+            )
         }
     }
 
@@ -233,43 +220,50 @@ fun DiaryScreen(
 }
 
 @Composable
-private fun DateSwitcherTitle(
+private fun DateSwitcherSection(
     date: LocalDate,
+    isToday: Boolean,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onDateClick: () -> Unit,
+    onTodayClick: () -> Unit,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth(),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconButton(onClick = onPrev) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Предыдущий день",
-            )
-        }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onDateClick)
-                .padding(vertical = 4.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "Дневник",
-                style = MaterialTheme.typography.titleLarge,
-            )
+            IconButton(onClick = onPrev) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Предыдущий день",
+                )
+            }
             Text(
                 text = date.format(HeaderDateFormatter).replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onDateClick)
+                    .padding(vertical = 8.dp),
             )
+            IconButton(onClick = onNext) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Следующий день",
+                )
+            }
         }
-        IconButton(onClick = onNext) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Следующий день",
-            )
+        if (!isToday) {
+            TextButton(onClick = onTodayClick) {
+                Text("Сегодня")
+            }
         }
     }
 }

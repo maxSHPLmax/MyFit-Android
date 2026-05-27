@@ -64,7 +64,14 @@ class HealthConnectRepository(private val context: Context) {
 
     /**
      * Возвращает агрегированную сводку за календарный день в указанной зоне.
-     * Result.Empty в случаях: HC недоступен / нет permissions / любой Throwable на чтении.
+     * Result.Empty в случаях:
+     *  - HC недоступен / нет permissions / любой Throwable на чтении
+     *  - aggregate вернул response с пустым dataOrigins (= ни один источник не
+     *    контрибьютил реальных записей за период). Без этой проверки HC отдаёт
+     *    BMR baseline (~1564 ккал) за каждый пустой день — для Samsung Health это
+     *    систематически случается для дат вне sliding window провайдера (~7 дней).
+     *    Lead подтвердил: в HC app данных нет до 17 мая, а наш UI рисовал 1564
+     *    везде в прошлом до марта.
      *
      * Mutex держим вокруг проверки-и-чтения, чтобы одновременные вызовы getOrRead(same date)
      * не сделали два aggregate() запроса.
@@ -73,6 +80,14 @@ class HealthConnectRepository(private val context: Context) {
         date: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
     ): BurnedKcalSummary {
+        // Будущие даты: HC aggregate за полностью future range возвращает latest
+        // BMR snapshot (наблюдаемо на устройстве Lead'а — 25/26 мая = значение
+        // последнего завершённого дня, 23 мая = 1564). Это семантически некорректно
+        // показывать как "сожжено" — день ещё не наступил. Возвращаем Empty без
+        // запроса в HC и без кеширования: завтра, когда сегодня станет вчера,
+        // запрос должен пройти нормальным путём.
+        if (date.isAfter(LocalDate.now(zone))) return BurnedKcalSummary.Empty
+
         cacheMutex.withLock {
             cache[date]?.let { return it }
 
@@ -92,11 +107,18 @@ class HealthConnectRepository(private val context: Context) {
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                     ),
                 )
-                BurnedKcalSummary(
-                    burnedKcal = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
-                        ?.inKilocalories ?: 0.0,
-                    steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
-                )
+                if (response.dataOrigins.isEmpty()) {
+                    // Реальных записей за день нет. ENERGY_TOTAL тут — computed-only
+                    // BMR fallback, показывать его нельзя. Кешируем как Empty, чтобы
+                    // не дёргать aggregate повторно при возврате на ту же дату.
+                    BurnedKcalSummary.Empty
+                } else {
+                    BurnedKcalSummary(
+                        burnedKcal = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
+                            ?.inKilocalories ?: 0.0,
+                        steps = response[StepsRecord.COUNT_TOTAL] ?: 0L,
+                    )
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "getOrRead($date): aggregate threw", t)
                 BurnedKcalSummary.Empty
@@ -113,6 +135,82 @@ class HealthConnectRepository(private val context: Context) {
 
     suspend fun invalidateAll() {
         cacheMutex.withLock { cache.clear() }
+    }
+
+    /**
+     * Debug helper: пишет в Logcat сводку HC данных за 4 7-дневных окна, разнесённых
+     * по времени от сегодня до ~3 месяцев назад. Дёргается из Settings DEBUG-кнопки.
+     *
+     * Зачем 4 разнесённых блока: проверяем гипотезу, что HC
+     * TotalCaloriesBurnedRecord.ENERGY_TOTAL для empty range возвращает BMR fallback
+     * из Samsung Health user profile (а не null/0). Известно: будущие даты дают 1564
+     * (фикс 302b466 их клампит). Сейчас Lead видит 1564 ВО ВСЕХ старых датах. Если
+     * 1564 повторяется в окнах 30/60/90 дней назад и dataOrigins для них пустой —
+     * гипотеза подтверждена, и нужен симметричный фикс: трактовать "computed-only"
+     * результат (origins пуст) как Empty.
+     *
+     * invalidateAll() в начале — чтобы каждый getOrRead был свежим, не cache hit'ом.
+     */
+    suspend fun debugReadAllToLogcat() {
+        Log.d(TAG, "=== debugReadAllToLogcat START ===")
+        Log.d(TAG, "availability=${availability()}, hasPermissions=${hasAllPermissions()}")
+        invalidateAll()
+        val today = LocalDate.now()
+        // Каждый блок — LongRange daysAgo. Окна: сегодняшняя неделя, месяц назад,
+        // два месяца назад, три месяца назад. Покрывает весь спектр от "точно есть
+        // данные с часов" до "точно ничего не было".
+        val blocks = listOf(
+            0L..6L,
+            24L..30L,
+            54L..60L,
+            84L..90L,
+        )
+        for (block in blocks) {
+            val oldest = today.minusDays(block.last)
+            val newest = today.minusDays(block.first)
+            Log.d(TAG, "--- Block: $oldest .. $newest (daysAgo ${block.last}..${block.first}) ---")
+            for (daysAgo in block) {
+                val date = today.minusDays(daysAgo)
+                val summary = getOrRead(date)
+                val origins = debugAggregateOrigins(date)
+                Log.d(
+                    TAG,
+                    "$date (daysAgo $daysAgo): " +
+                        "burnedKcal=${summary.burnedKcal}, steps=${summary.steps}, " +
+                        "origins=$origins",
+                )
+            }
+        }
+        Log.d(TAG, "=== debugReadAllToLogcat END ===")
+    }
+
+    /**
+     * Debug-only: повторный aggregate без кеширования, чтобы вытащить dataOrigins.
+     * Если origins пустой — значит aggregate был computed-only (BMR fallback).
+     * Если есть — реальные данные из Samsung Health / других источников.
+     */
+    private suspend fun debugAggregateOrigins(
+        date: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        val c = client ?: return "client=null"
+        if (date.isAfter(LocalDate.now(zone))) return "future"
+        val start = date.atStartOfDay(zone).toInstant()
+        val end = date.plusDays(1).atStartOfDay(zone).toInstant()
+        return try {
+            val response = c.aggregate(
+                AggregateRequest(
+                    metrics = setOf(
+                        TotalCaloriesBurnedRecord.ENERGY_TOTAL,
+                        StepsRecord.COUNT_TOTAL,
+                    ),
+                    timeRangeFilter = TimeRangeFilter.between(start, end),
+                ),
+            )
+            response.dataOrigins.joinToString(",") { it.packageName }.ifEmpty { "<empty>" }
+        } catch (t: Throwable) {
+            "THREW: ${t.javaClass.simpleName}"
+        }
     }
 
     companion object {

@@ -166,6 +166,14 @@ class SettingsViewModel(
         viewModelScope.launch { healthConnectPreferences.setEnabled(value) }
     }
 
+    /**
+     * Debug helper — дёргает HealthConnectRepository.debugReadAllToLogcat().
+     * Вызывается из BuildConfig.DEBUG-кнопки в Settings.
+     */
+    fun runHealthConnectDebugDump() {
+        viewModelScope.launch { healthConnectRepository.debugReadAllToLogcat() }
+    }
+
     fun scheduleTestReminder() {
         reminderScheduler.scheduleTest(TEST_REMINDER_DELAY_MS)
     }
